@@ -127,7 +127,7 @@ mixer via drm-misc-next** may finally pay off — note (per the pivot below) tha
 > and the **in-flight H616 DE33** upstream effort
 > ([dri-devel](https://lists.freedesktop.org/archives/dri-devel/2025-May/507950.html)) — neither
 > of which carries the A523 pipeline itself. This retraction resolves
-> [issue #1](https://github.com/MidG971/trimui_mainline_dts/issues/1).
+> [issue #1](https://github.com/MidG971/trimui_smart_pro_s/issues/1).
 >
 > The original (wrong) section is kept below, unedited, for provenance.
 

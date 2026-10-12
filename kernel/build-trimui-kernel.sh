@@ -9,7 +9,7 @@
 # Usage:
 #   ./build-trimui-kernel.sh <kernel-src-dir> [repo-dir]
 # Example:
-#   ./build-trimui-kernel.sh /root/trimui-display/linux-rc /root/trimui_mainline_dts
+#   ./build-trimui-kernel.sh /root/trimui-display/linux-rc /root/trimui_smart_pro_s
 #
 # Assumes a clean-ish v7.1+ tree. Re-running is safe (patches/copies are
 # idempotent: it skips a patch that's already applied).

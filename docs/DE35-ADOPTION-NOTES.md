@@ -15,7 +15,7 @@
 > **ut-slayer's OrangePi-4A port** (<https://github.com/ut-slayer/orangepi-4a-mainline>) — a
 > community tree, not drm-misc. See
 > [DISPLAY-PORT-STATUS.md](DISPLAY-PORT-STATUS.md) (current status) and
-> [issue #1](https://github.com/MidG971/trimui_mainline_dts/issues/1).
+> [issue #1](https://github.com/MidG971/trimui_smart_pro_s/issues/1).
 >
 > **Update (2026-08-10):** the display was brought up **on hardware** — the combo-PHY DISPLL locks,
 > the TCON pixel clock is correct (93 MHz), the DSI + panel are up and the **panel backlight is on**.

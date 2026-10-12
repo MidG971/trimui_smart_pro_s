@@ -8,12 +8,12 @@ Mainline Linux bring-up for the **Trimui Smart Pro S** retro-gaming handheld
 (`sun55iw3p1`) — built on the upstream `sun55i-a523.dtsi` and modeled on the
 `sun55i-t527-avaota-a1` board (same SoC family).
 
-📖 **Full documentation lives in the [Wiki](https://github.com/MidG971/trimui_mainline_dts/wiki)** —
-[Roadmap](https://github.com/MidG971/trimui_mainline_dts/wiki/Roadmap) ·
-[Status](https://github.com/MidG971/trimui_mainline_dts/wiki/Status) ·
-[Hardware Overview](https://github.com/MidG971/trimui_mainline_dts/wiki/Hardware-Overview) ·
-[Bring-Up Runbook](https://github.com/MidG971/trimui_mainline_dts/wiki/Bring-Up-Runbook) ·
-[Building](https://github.com/MidG971/trimui_mainline_dts/wiki/Building)
+📖 **Full documentation lives in the [Wiki](https://github.com/MidG971/trimui_smart_pro_s/wiki)** —
+[Roadmap](https://github.com/MidG971/trimui_smart_pro_s/wiki/Roadmap) ·
+[Status](https://github.com/MidG971/trimui_smart_pro_s/wiki/Status) ·
+[Hardware Overview](https://github.com/MidG971/trimui_smart_pro_s/wiki/Hardware-Overview) ·
+[Bring-Up Runbook](https://github.com/MidG971/trimui_smart_pro_s/wiki/Bring-Up-Runbook) ·
+[Building](https://github.com/MidG971/trimui_smart_pro_s/wiki/Building)
 
 > ## ⚠️ Experimental — use at your own risk
 > This is an **active bring-up effort**, not production firmware. It now **boots mainline
@@ -21,7 +21,7 @@ Mainline Linux bring-up for the **Trimui Smart Pro S** retro-gaming handheld
 > the GPU, and the input/audio/peripheral subsystems working**, and the **display pipeline now
 > lights the panel on hardware** (a full-screen image at the stock 62 MHz) — though it is **not yet
 > robust or upstream-clean**: colour still has a **YUV↔RGB** conversion to resolve, plus
-> continuous-refresh hardening + submission, and the device tree may still change. Flashing or FEL-booting
+> a panel-IC **heat** issue to tame and upstream submission, and the device tree may still change. Flashing or FEL-booting
 > custom firmware **can permanently brick your
 > device**, corrupt data, or damage hardware. **No warranty, no liability — you use
 > this entirely at your own risk.** Back up your stock firmware first. Booting from
@@ -126,18 +126,21 @@ over-driving the panel), and bypassing a stale device-output CSC cleared the gro
 But the **colour is still not right**: a residual **YUV↔RGB** conversion in the DE/DSI output path
 remains to be sorted out.
 
-**What's left on the display is colour, robustness, and upstreaming — not first pixels:** the
-**YUV↔RGB colour** conversion, hardening the CPU-interface DSI's **per-frame retrigger** for reliable
-continuous refresh, and reshaping the stack into clean, upstream-acceptable patches — coordinating
-with the in-flight mainline DE33 work rather than duplicating it.
+**What's left on the display is colour, heat, and upstreaming — not first pixels:** the
+**YUV↔RGB colour** conversion; the **panel-IC heat** — the DDIC overheats within a couple of minutes
+and shows a thermal "fractal" artifact (the real robustness blocker, tied to the DSI HS-clock duty and
+independent of the commit path); and reshaping the stack into clean, upstream-acceptable patches,
+coordinating with the in-flight mainline DE33 work rather than duplicating it. A 2026-10-09 hardware
+test showed the A523 DE also latches via **direct AHB** (like H616), so the upstream form can **drop
+the BSP-derived RCQ engine** entirely — simplifying that last step.
 
 The full boot journey + the SPL fixes are in
 [`docs/BOOT-AND-FEL-NOTES.md`](docs/BOOT-AND-FEL-NOTES.md); the captured first boot to a shell
 is [`docs/FIRST-MAINLINE-BOOT-2026-08-05.txt`](docs/FIRST-MAINLINE-BOOT-2026-08-05.txt). KNULLI
 (a vendor-BSP CFW) also boots this board as a reference chain.
 
-👉 Per-subsystem detail in the **[Status page](https://github.com/MidG971/trimui_mainline_dts/wiki/Status)**;
-the plan in the **[Roadmap](https://github.com/MidG971/trimui_mainline_dts/wiki/Roadmap)**
+👉 Per-subsystem detail in the **[Status page](https://github.com/MidG971/trimui_smart_pro_s/wiki/Status)**;
+the plan in the **[Roadmap](https://github.com/MidG971/trimui_smart_pro_s/wiki/Roadmap)**
 (deep mainline bring-up → daily-driver optimization → forward-maintained).
 
 ## Help wanted 🙏
@@ -156,7 +159,7 @@ hardware facts or test patches.
 ./kernel/build-trimui-kernel.sh <v7.2-src>     # full kernel: patches + drivers + dtbs
 ```
 
-Details and validation gates: [Building](https://github.com/MidG971/trimui_mainline_dts/wiki/Building).
+Details and validation gates: [Building](https://github.com/MidG971/trimui_smart_pro_s/wiki/Building).
 
 ## Repository layout
 
@@ -183,10 +186,10 @@ included here.
 
 ## Star History
 
-<a href="https://www.star-history.com/#MidG971/trimui_mainline_dts&Date">
+<a href="https://www.star-history.com/#MidG971/trimui_smart_pro_s&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=MidG971/trimui_mainline_dts&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=MidG971/trimui_mainline_dts&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=MidG971/trimui_mainline_dts&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=MidG971/trimui_smart_pro_s&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=MidG971/trimui_smart_pro_s&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=MidG971/trimui_smart_pro_s&type=Date" />
  </picture>
 </a>
