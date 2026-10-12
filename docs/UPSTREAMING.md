@@ -7,6 +7,14 @@ The order and routing for getting this port into mainline Linux, once the device
 boots mainline and each feature is verified on hardware. This is the *execution*
 plan; [`UPSTREAM-READINESS.md`](UPSTREAM-READINESS.md) is the per-item scorecard.
 
+## Where it stands
+
+The board boots mainline on hardware, so submission has started. The **small standalone fixes**
+(pinctrl voltage-withstand, `mmc-pwrseq` missing-reset, `mfd: axp20x` poweroff/restart) go first;
+**CPU-CCU / cpufreq** waits on Andre's A523 CPU-CCU landing; **thermal** follows Kalashnikov's
+two-nvmem-cell THS; and the **display** is the long haul, gated behind the H616 DE33 rework. Per-item
+state in [`UPSTREAM-READINESS.md`](UPSTREAM-READINESS.md).
+
 ## The one rule: hardware-tested first
 
 sunxi/upstream culture is **tested-on-hardware-first**. Almost nothing lands before
@@ -53,6 +61,22 @@ already taken here** — is now binding on our submissions:
   tester. Track his fixes; when they merge, they flow into our rebase.
 - **Join `#linux-sunxi` on OFTC** for quick direction before starting work.
 
+**Further guidance (2026-10, from the A733/A523-family review — full digest in the project memory):**
+- **Bindings (Krzysztof):** header filename must match the compatible; clock/reset indices are ABI
+  (start 0/1, contiguous, no placeholder IDs for unexposed clocks); per-variant constraints go inside
+  `allOf:`; keep compatible enums sorted.
+- **CCU:** `0`-suffix single instances; `CLK_IS_CRITICAL` on DMA/MMC/NOR-backing bus clocks; `const`
+  reset maps. Poll PLL lock with `readl_relaxed_poll_timeout_atomic()` — the non-atomic macro stalls
+  when timekeeping is suspended during DVFS → freeze (merged `clk-for-7.4`).
+- **UART:** offset `0xc0` is the RS485 control reg, *not* DLF — the generic auto-probe misdetects it
+  and corrupts the console; refine DLF detection + use the `SKIP_SET_RATE` quirk.
+- **Boot:** some A523 clock + PRCM controls are secure-by-default — BL31 must open the security
+  switches (in TF-A) before Linux can use them.
+- **Pinctrl:** keep the `interrupts` array on the upstream convention; `.irq_banks` must equal the DT
+  interrupt count exactly (too-small silently kills GPIO IRQs on the top bank).
+- **Keep submissions terse;** frame agent-measured HW as a *report*, not `Tested-by`, unless
+  personally verified. **Don't carry** the `sunxi_sram_claim()` memory-ordering patch (NAK'd).
+
 ## Routing (who gets what)
 
 Run `scripts/get_maintainer.pl` on each patch; the table is the shape of it.
@@ -86,11 +110,12 @@ Run `scripts/get_maintainer.pl` on each patch; the table is the shape of it.
      *local* build only.)
    - **USB3** (Kalashnikov) — enable `&combophy`/`&dwc3` + the Trimui GMA340 mux on top.
 4. **The big new drivers** — their own series to their subsystems:
-   - **Display stack** — **NOT urgent, and sequenced behind H616.** Upstream wants the
-     **H616 DE33 support merged first**, then A523 DE follows as a clean extension —
-     *not* a BSP-derived RCQ port. So upstream = {DSI host variant → combo-PHY → TCON →
-     panel} can go early to DRM, but the **DE3.5 mixer/CRTC waits on H616 DE** landing.
-     Largest, most novel, longest review — budget for many revisions.
+   - **Display stack** — **NOT urgent, sequenced behind H616.** Upstream wants the **H616 DE33
+     rework merged first**, then A523 follows as a clean extension — *not* a BSP-derived RCQ port.
+     Land it as the **whole chain** (bindings + driver together — maintainers won't take a
+     reverse-engineered binding ahead of a working driver), coordinating with Jernej's rework. A
+     2026-10-09 HW test showed the A523 DE latches via **direct AHB**, so the upstream form **drops
+     the RCQ engine** entirely. Largest/longest review — budget for many revisions.
    - **Audio codec** → ASoC. **PWM driver** → linux-pwm.
 
 ## Per-submission checklist

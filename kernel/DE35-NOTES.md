@@ -1,7 +1,17 @@
 <!-- SPDX-License-Identifier: (GPL-2.0-only OR MIT) -->
 <!-- Copyright (C) 2026 Midgy BALON -->
 
-# DE3.5 (display engine) port plan — sun55i-a523
+# DE3.5 (display engine) port plan — sun55i-a523  (SUPERSEDED — kept as history)
+
+> **⛔ SUPERSEDED — this was the early DE3.5 port *plan* (2026-06).** The display has since been
+> **solved on hardware** (the panel lights — see
+> [`../docs/DISPLAY-PORT-STATUS.md`](../docs/DISPLAY-PORT-STATUS.md)), and the upstream shape has
+> moved to the **shared-planes DE33** model, with a 2026-10-09 HW finding that the A523 DE latches
+> via **direct AHB** (RCQ droppable). Current source of truth:
+> [`harvest-sun55i-de/DE33-ALIGNMENT.md`](harvest-sun55i-de/DE33-ALIGNMENT.md) +
+> [`staged-de33-a523/`](staged-de33-a523/). The old 3-reg `layers/top/display` +
+> `display_clocks`/`display-engine` aggregator model below is the **pre-rework binding** — kept as
+> history, not current guidance.
 
 The last piece for a lit panel: a CRTC/scanout source feeding TCON-LCD1.
 

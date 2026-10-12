@@ -3,11 +3,15 @@
 
 # Trimui Smart Pro S — hardware bring-up runbook
 
-Everything in the port is written and builds clean against Linux **v7.1**
-(no-hardware phase complete). This is the step-by-step plan to run when the
-device arrives, with the exact tools for each step.
+## Where it stands
 
-**Golden rules**
+The device is up: mainline Linux (**v7.2-rc3**) boots to a shell on hardware — WiFi/BT, storage,
+PMIC/battery, USB2, GPU, thermal/fan, and the input/audio/peripheral subsystems work, and the display
+pipeline lights the panel (see the README for the live status). **Phases 0–5 below are done.** This
+runbook is kept as the **reference + recovery procedure** — re-flash, brick recovery, or a
+from-scratch bring-up on another unit. (It was written in the no-hardware phase against v7.1.)
+
+**Golden rules (for any re-flash / recovery)**
 - Do all of **Phase 1–2 (recon + backup) before writing anything to the device.**
 - Boot our kernel from **microSD first**, never eMMC, until it's proven.
 - First U-Boot boot is via **FEL (RAM-only)** — it touches no storage, so it can't brick.
@@ -296,9 +300,9 @@ HW tuning. See `kernel/DE35-NOTES.md`.
 
 ---
 
-## Quick reference — what's already done (so you don't redo it)
-DSI host, combo-D-PHY, TCON-LCD, PWM, panel driver, SoC display DT nodes, the board
-DTS, U-Boot (DRAM-retargeted, FEL-bootable), and the DE3.5 mixer cfg are all written
-and build clean on v7.1. Patches: `kernel/patches/0001–0008`; drivers:
-`kernel/drivers/`. The single remaining code/DT task is the DE DT assembly (Phase 6.1),
-best finished against the device's live DTB.
+## Quick reference — what's done
+The whole stack is up on hardware (v7.2-rc3): the boot chain, WiFi/BT, storage, PMIC/battery, USB2,
+GPU, thermal/fan, and the input/audio/peripheral subsystems, plus the display pipeline lighting the
+panel. The display is the remaining robustness + upstream work (colour, panel-IC heat, clean patches —
+see [`DISPLAY-PORT-STATUS.md`](DISPLAY-PORT-STATUS.md)). Patches: `kernel/patches/`; drivers:
+`kernel/drivers/`.

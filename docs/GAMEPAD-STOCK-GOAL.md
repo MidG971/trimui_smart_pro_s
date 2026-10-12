@@ -4,6 +4,11 @@ Captured on stock firmware (Longan 5.15.147) via `adb` + `getevent`. This is the
 **evdev behaviour our mainline port must reproduce** for drop-in game/emulator
 compatibility. Raw logs: `docs/stock-input-capture/`.
 
+**Status (2026-10): parity achieved.** The in-kernel driver now reproduces this contract — one
+`TRIMUI Player1` pad, D-pad as `ABS_HAT0X/Y`, L2/R2 as `ABS_Z/RZ`, sticks scaled to ±32767, and
+FF/rumble — see [`GAMEPAD-SERDEV-PLAN.md`](GAMEPAD-SERDEV-PLAN.md). The capture below is the reference
+contract we matched.
+
 ## The pad: `TRIMUI Player1`
 
 Stock's `trimui_inputd` merges both gamepad MCUs into **one** uinput device that
@@ -58,14 +63,13 @@ Handlers=js0 event4
 | `axp2202-pek`     | `KEY_POWER`                                                  |
 | `audiocodec Headphones` | `KEY_VOLUMEDOWN KEY_VOLUMEUP KEY_MEDIA 0246` + `SW_HEADPHONE_INSERT SW_MICROPHONE_INSERT` |
 
-## Delta: current mainline driver → this goal
-`kernel/drivers/gamepad-trimui-smart-pro-s.c` today creates **two** per-MCU
-devices with d-pad-as-buttons + digital-trigger-buttons. To hit stock parity:
-1. **Merge to one** input_dev; `id = BUS_USB / 0x045e / 0x028e / 0x0114`,
-   name `"TRIMUI Player1"`.
-2. D-pad bits → `ABS_HAT0X/Y` (−1/0/+1), drop `BTN_DPAD_*`.
-3. L2/R2 bits → `ABS_Z/ABS_RZ` (0/255), drop `BTN_TL2/TR2`.
-4. Sticks: scale 12-bit Hall → `±32767`, center-subtract (~2048); declare
-   `ABS_X/Y/RX/RY` with `input_set_abs_params(... -32767, 32767, 0, 0)`.
-5. Fn switch: emit `SW_TABLET_MODE` here (or resolve the KEY_FN divergence).
-6. Later: wire `EV_FF`/`FF_RUMBLE` → pwm-vibrator.
+## How we matched it (done 2026-10-01)
+`kernel/drivers/gamepad-trimui-smart-pro-s.c` previously created **two** per-MCU devices with
+d-pad-as-buttons + digital-trigger-buttons; it now meets the contract above:
+1. **Merged to one** input_dev (`BUS_USB / 0x045e / 0x028e / 0x0114`, name `"TRIMUI Player1"`).
+2. D-pad bits → `ABS_HAT0X/Y` (−1/0/+1).
+3. L2/R2 bits → `ABS_Z/ABS_RZ` (0/255).
+4. Sticks scaled 12-bit Hall → `±32767`, center-subtracted (~2048).
+5. **FF/rumble** wired to the motor.
+6. **Open choice:** the Fn switch — mainline currently exposes `KEY_FN` (PL11, gpio-keys) vs stock's
+   `SW_TABLET_MODE` on the pad; emit one or both (undecided).
