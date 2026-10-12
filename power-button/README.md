@@ -14,9 +14,9 @@ powers off by accident; a clean poweroff takes a deliberate long hold.
 - The original plan was a navigable **on-screen power menu**. Abandoned: the A523 DSI panel
   won't reliably render/establish a custom frame (commit/flip_done deadlock; see
   `docs/DISPLAY-*`). Gestures give the same power actions with zero display dependency.
-- **Restart is intentionally omitted**: `systemctl reboot` uses the warm-reboot path, which is
-  broken on this board (it tears down then hangs, needing a manual power-cycle). Re-add a
-  double-tap -> reboot once warm reboot works.
+- **Restart gesture not yet wired** (originally omitted because `systemctl reboot` hung): warm
+  reboot is now **fixed** (2026-10-07 — PMIC power-cycle via a systemd shutdown hook, see
+  `docs/WARM-REBOOT-NOTES.md`), so a double-tap → reboot gesture is now safe to add.
 
 ## Files (deployed paths)
 - `/usr/local/bin/power-btn-daemon.py` — reads the AXP PEK (found BY NAME, not a fixed event

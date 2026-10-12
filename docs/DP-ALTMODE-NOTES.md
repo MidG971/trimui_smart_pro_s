@@ -7,7 +7,7 @@ Planning doc for **external video-out over USB-C DisplayPort Alt Mode** (e.g. a
 USB-C→HDMI adapter driving a TV/monitor).
 
 **Status: NOT STARTED — Phase 6+.** It sits *behind* the internal MIPI-DSI panel
-bring-up (shared display engine), which itself isn't confirmed lit on mainline yet.
+bring-up (shared display engine), which now lights on mainline but isn't yet robust/upstream-clean.
 No upstream A523 DP work exists by anyone — this would be the only effort, same as
 the DSI/DE stack. **Spec-unblocked:** register map is in **UM v1.4 "eDP 1.3"**
 section + the tina5.0_aiot BSP `sunxi_drm` eDP source; so it's "a lot of driver

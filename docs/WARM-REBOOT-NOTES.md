@@ -1,4 +1,14 @@
-# Warm-reboot investigation (Trimui Smart Pro S / A523)
+# Warm-reboot (Trimui Smart Pro S / A523) — SOLVED
+
+> **✅ SOLVED (2026-10-07) — read this first.** `systemctl reboot` / `reboot` now work on hardware,
+> via a **systemd shutdown hook that PMIC-power-cycles** the system (AXP717/AXP2202 on i2c-0 `0x34`,
+> REG `0x27` bit 1 → `i2cset -f -y 0 0x34 0x27 0x0e`) — this unpowers DRAM for a clean cold training,
+> and the device returns on its own in ~20 s (also wired as `/usr/local/bin/warm-reboot`). The leading
+> "SPL DRAM re-init on warm reset" theory below was right in spirit; the fix sidesteps it by forcing a
+> true cold cycle. **Next:** bake the axp20x restart handler into the Image for a native in-kernel
+> reboot. The investigation below is kept as history.
+
+## Investigation (history)
 
 **Symptom:** from running mainline Linux, `reboot` / `systemctl reboot` leaves the SoC frozen — the
 device does not come back. Cold power-cycle is the only reliable restart. (Cold boot works fully.)

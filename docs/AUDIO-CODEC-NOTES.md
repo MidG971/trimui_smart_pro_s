@@ -28,8 +28,10 @@ driver, so per the linux-sunxi "adopt in-flight, don't duplicate" guidance we ad
   MIC1←Mic), `avcc = aldo4`.
 
 **Build status:** `sun4i-codec.o` compiles and the board DTB builds; the decompile shows the
-codec node with `apb/dac/adc` + the card props + the amp hog resolving. Playback is
-merge-quality upstream; **capture is his `[WIP]`**. HW-UNVERIFIED (no audio without the device).
+codec node with `apb/dac/adc` + the card props + the amp hog resolving. Playback is merge-quality
+upstream and **verified on hardware** (headphone + built-in speaker). His capture is `[WIP]`; on top
+of it we carry an A523 **capture-engine fix (patch 0037)** that makes `arecord` work on HW (acoustic
+tuning ongoing — see below).
 
 ### Two real gaps found (upstream feedback material)
 1. **His card has NO speaker-amp (PA) support.** Our handheld needs the **PH6** (active-high)
@@ -71,7 +73,10 @@ mainline), and if he also adds the SoC `audio-codec@7110000` node to `sun55i-a52
 - **Playback works on hardware**: headphone *and* the built-in speaker (via the PH6 amp) are
   confirmed (codec ramp + reference-LDO fix). The capture/mic DAPM routing still wants an
   on-hardware check.
-- Capture is `[WIP]` upstream — validate the 3-ADC mic path, or wait for his non-WIP version.
+- Capture: the **engine is fixed on HW** (our patch 0037 — A523 `ADC_FIFOC` bit layout + ADC/MBIAS
+  routes; `arecord` no longer EIOs). Acoustic/mic tuning + the 3-ADC path are still being refined
+  (the single mic sits next to the always-on fan, so noise-suppression/RNNoise is in the mix).
+  Upstream capture remains his `[WIP]`.
 - DT `*-vol`/`*-gain` defaults, jack/HMIC detect, SID-efuse bias calibration, suspend/resume —
   all still deferred; his driver is a minimal playback-first variant.
 - BSP regmap reference on the build host: `aw-bsp-drivers/.../snd_sun55iw3_codec.{c,h}`; UM ch 4.1.
