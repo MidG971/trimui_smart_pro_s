@@ -184,6 +184,10 @@ SPDX tag; full texts in [`LICENSES/`](LICENSES/), provenance in [`NOTICE`](NOTIC
 The proprietary vendor firmware and the decompiled vendor device tree are **not**
 included here.
 
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20me-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/L0A528NNQ5)
+
+
 ## Star History
 
 <a href="https://www.star-history.com/#MidG971/trimui_smart_pro_s&Date">
