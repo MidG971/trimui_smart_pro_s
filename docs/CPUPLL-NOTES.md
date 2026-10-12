@@ -9,10 +9,14 @@ greenfield — until the **ut-slayer / OrangePi-4A** effort
 Juan Manuel Lopez Carrillo; T527 = same `sun55iw3` die as our A523) wrote a proper
 mainline **CPU-CCU driver**. We **adopted it and forward-ported it to v7.2**.
 
-**Status: ADOPTED + build-verified.** The 6 SoC-level patches apply cleanly to
-v7.2-rc3 and the driver + framework objects **cross-compile clean** (aarch64, on
-`build-host`). Still HW-unverified on our board (it's boot-critical — the
-frequencies/rate-change are silicon's call, per hardware-testing-prevails).
+**Status (2026-10): tested on hardware; the upstream direction has shifted.** We first adopted
+ut-slayer's CPU-CCU (0015–0020, below), then tested **Andre Przywara's upstream A523/T527 CPU-CCU
+(v3)** on silicon: the **little cluster + DSU sweep 408→1416 MHz cleanly** (off the 768 MHz cap), but
+the **big cluster hangs at boot** on the first PLL reprogram (parked). ⇒ the plan is to **adopt
+Andre's v3** (dropping our out-of-tree 0015–0020, incl. 0019) when it merges, not ship our own. Fresh
+lead for the big-cluster hang: poll PLL lock with **`readl_relaxed_poll_timeout_atomic()`** — the
+non-atomic macro stalls when timekeeping is suspended during DVFS → freeze (merged `clk-for-7.4`) —
+retest the big cluster with it.
 
 **Credits:** the A523/T527 CPU-CCU driver is ut-slayer's / Juan Manuel Lopez Carrillo's work
 ([`orangepi-4a-mainline`](https://github.com/ut-slayer/orangepi-4a-mainline)), forward-ported
@@ -59,12 +63,15 @@ Register map (PLL_CPU0@0x00, PLL_CPUB@0x0c, CPUB@0x64) matched the earlier BSP m
    `axp1530` is already mainline (`x-powers,axp1530`). Big-cluster `cpu-supply` wired for
    cpu4–7 (`cpu@400` → `reg_ext_dcdc1`). See [ON-DEVICE-FINDINGS](ON-DEVICE-FINDINGS.md).
    Little cluster uses `reg_dcdc1` (axp717 main PMIC).
-3. **On-hardware (the only thing left):** include `trimui-cpu-opp.dtsi` from the board
-   DTS, boot, confirm both cpufreq domains scale (policy0 = cpu0, policy4 = cpu4), and
-   tune the OPP voltages. Boot-critical → HW-gated (hardware-testing-prevails).
+3. **Little-cluster DVFS: working on HW** (policy0, 408→1416 swept clean on Andre's v3).
+4. **Big-cluster DVFS: hangs at boot** (policy4, first big-PLL reprogram) — parked. Next experiment:
+   Andre v3 + the `readl_relaxed_poll_timeout_atomic()` PLL-lock fix; pinning it needs a serial-console
+   capture (UART pads to be soldered).
 
 ## Upstream status
-ut-slayer's series is **posted to linux-sunxi for review/feedback, not submitted or
-merged** — the author plans to split it for proper submission. So we **adopt + track**
-(and are well placed to give feedback). Credits: Juan Manuel Lopez Carrillo (ut-slayer),
-building on minimyth2 / Justin Suess (H728) and Jernej Škrabec (H616).
+The canonical upstream answer is now **Andre Przywara's A523/T527 CPU-CCU** ([PATCH v3], 2026-09-25) —
+**not yet merged** as of 2026-10 (mainline has the main + MCU + PRCM CCU, no CPU CCU). When it lands we
+drop our out-of-tree 0015–0020 and reply with HW results (a *report* for the big cluster, a clean
+little-cluster result — per the terse-submission guidance). The ut-slayer series (Juan Manuel Lopez
+Carrillo, building on minimyth2 / Justin Suess (H728) + Jernej Škrabec (H616)) is what we adopted first
+and remains the credit for the local bring-up.

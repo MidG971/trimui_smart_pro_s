@@ -126,6 +126,13 @@ it was only ever useful for the tiny `version`/`sid` probes.
 3. **Get a UART on PB9/PB10 and see where U-Boot dies** — the clean path. Since the MMC
    clock/gate/reset is verified correct (see the correction above), the UART is to catch the
    init-time MMC probe or the BL31→U-Boot handoff, *not* to re-check the clock.
+   - **Heads-up once the UART is live (linux-sunxi, 2026-10):** on Allwinner DW UARTs, register
+     offset `0xc0` is the **RS485 control reg, not DLF** — the generic DLF auto-probe misdetects it
+     and writes divisors into RS485, corrupting the console (A523 reads back `0x9f`, not a contiguous
+     `2^n−1` mask). If the mainline console is garbled, refine DLF detection / use the `SKIP_SET_RATE`
+     quirk. Also: some A523 clock + PRCM controls are **secure-by-default** — BL31 must open the
+     security switches (write non-secure) before Linux can use them, which could also explain a
+     "src reads back gated" clock mystery around the EL3→EL2 handoff.
 
 ## Status
 

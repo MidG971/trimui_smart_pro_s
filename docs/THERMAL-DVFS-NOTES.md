@@ -9,6 +9,15 @@ like a sane daily driver. Splits into three tracks: **thermal sensors (THS)**,
 are HW-gated for final tuning; the data here is from the vendor DTB + stock
 firmware (v1.0.1 == v1.0.2 vendor DTB, byte-identical) and upstream patch review.
 
+## Where it stands (2026-10)
+
+**Working on hardware:** THS + the pwm-fan are up — all 5 thermal zones read (~37–39 °C idle),
+calibration good, and the fan is temperature-controlled (was pinned) — via our local THS (patches
+0021–0023) + surgical DTB injection, pending the upstream Kalashnikov THS merge. **CPU DVFS:** the
+little cluster scales on HW (408→1416 MHz); the big cluster hangs at boot (parked — see
+[CPUPLL-NOTES.md](CPUPLL-NOTES.md)). **GPU devfreq:** builds, still HW-unverified. The sections below
+are the findings + the upstream-adoption plan.
+
 ## 1. Thermal sensors (THS) — adopt the upstream series
 
 There is an in-flight mainline series that fully covers the A523 sensors:
@@ -75,12 +84,14 @@ Real per-cluster OPP ladders are transcribed in `dts/staging/trimui-cpu-opp.dtsi
 - **big** cpu4-7 (`axp1530` @0x36 dcdc1): 408 -> **1800 MHz** nominal (0.90 -> 1.15 V);
   turbo bins 1992 @1.22 V / 2088 @1.24 V / 2160 @1.28 V (better silicon only).
 
-Two cpufreq domains confirmed on the stock OS: `cpufreq/policy0` (little) and
-`policy4` (big). **Blocked** on the A523 CPU clock: mainline's CCU exposes no settable
-cluster clock (`CLK_CPUX` absent) so `cpufreq-dt` has nothing to scale — we carry the
-ut-slayer CPU-CCU (`0015-0020`) locally until it's upstreamed (see `CPUPLL-NOTES.md`).
-The big-cluster regulator is **not** a blocker: it's **axp1530@0x36** (`x-powers,axp1530`,
-already mainline), not the tcs4838 first guessed (0x41 is absent — confirmed on HW).
+Two cpufreq domains confirmed: `cpufreq/policy0` (little) and `policy4` (big). **Status:** the
+**little cluster scales on HW** (408→1416 MHz) via Andre Przywara's A523 CPU-CCU v3; the **big
+cluster hangs at boot** on the first PLL reprogram (parked). Mainline's own CCU still exposes no
+settable cluster clock, so until Andre's v3 merges we carry a local CPU-CCU (`0015-0020`, see
+[CPUPLL-NOTES.md](CPUPLL-NOTES.md)). Lead for the big-cluster hang: the
+`readl_relaxed_poll_timeout_atomic()` PLL-lock fix (merged `clk-for-7.4`). The big-cluster regulator
+is **not** a blocker — it's **axp1530@0x36** (`x-powers,axp1530`, mainline), not the tcs4838 first
+guessed (0x41 absent — HW-confirmed).
 
 Vendor DVFS presets (map cleanly to mainline governors):
 - **Performance**: `scaling_governor = performance`, min = max pinned high.

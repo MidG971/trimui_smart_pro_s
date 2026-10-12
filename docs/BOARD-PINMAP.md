@@ -21,6 +21,10 @@ GPIO decode in vendor DTB: `<phandle bank pin flags>`.
 | **WiFi SDIO (mmc1 = SDC1)** | PG0–PG5 | mux2 | CLK,CMD,D0–D3. |
 | **eMMC (mmc2 = SDC2), 8-bit** | PC0 DS, PC1 RST, PC5 CLK, PC6 CMD, PC8 D3, PC9 D4, PC10 D0, PC11 D5, PC13 D1, PC14 D6, PC15 D2, PC16 D7 | mux3 | shares NAND pins. |
 
+> **DTS convention (for rebase):** define I2C pin groups as `/omit-if-no-ref/` nodes with
+> `allwinner,pinmux=<2>`, `drive-strength=<10>`, `bias-pull-up`, matching the upstream
+> `sun55i-a523.dtsi` I2C pin groups — reconcile with the base dtsi to avoid duplicate-node conflicts.
+
 ## WiFi / Bluetooth — AIC8800 (control on R_PIO **Port M**)
 
 ⚠️ **Correction:** earlier notes said PB0/PB1 — that was a bad decode (phandle `0x5a`
