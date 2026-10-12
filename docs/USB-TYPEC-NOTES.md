@@ -7,6 +7,12 @@ The board has **two USB-C ports**. Facts below are from the vendor DTB
 (`vendor/trimui_smart_pro_source.dts`); mainline driver status was checked against
 v7.2-rc1. Live state is captured by `recon.sh` §7B on the stock OS.
 
+**Status on HW:** USB2 **host** works and basic charging works (the AXP717 detects VBUS). But the
+**Type-C controller path is blocked on hardware** — the husb311 sits on **TWI5, which comes up locked**,
+and OTG VBUS/ID detect + drivevbus aren't wired in the DT, so PD negotiation, DP alt-mode and the
+OTG role-switch (USB-gadget / host-networking) don't come up yet. That's a separate DT/PMIC blocker;
+the scoping below is the intended mainline wiring.
+
 | Port (silk) | Role | Key parts |
 | :--- | :--- | :--- |
 | USB host | USB3 host (super-speed) | `dwc3@0x04d00000` (`snps,dwc3`, `dr_mode=host`) + **GMA340** SuperSpeed redriver (sel=PH7, oe=PH8) |

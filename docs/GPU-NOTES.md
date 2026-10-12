@@ -6,9 +6,13 @@
 ## TL;DR
 The A523 GPU is an **ARM Mali-G57** (*Valhall*, **Job-Manager** based). The driver is
 **Panfrost** (`drm/panfrost` kernel + Mesa **Panfrost** GLES / **PanVK** Vulkan) — and it is
-**already fully supported upstream** (verified on v7.1): the SoC GPU node, the DT binding,
+**already fully supported upstream**: the SoC GPU node, the DT binding,
 and Panfrost's Valhall/G57 support are all in mainline. For the Trimui board this is **not a
 porting effort** — it's a two-line board enable (`status = "okay"` + `mali-supply`).
+
+**Status (on HW):** the GPU is **enabled in the board DTS and Panfrost binds** (module loaded) — it
+runs at the boot clock. GPU **DVFS** (an OPP table) is still gated on the upstream maskdiv clock fix
+(see below); basic accel needs none of it.
 
 ## Decision: Panfrost. NOT Panthor, NOT the vendor blob.
 
