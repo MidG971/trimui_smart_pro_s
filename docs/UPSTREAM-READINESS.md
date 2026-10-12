@@ -1,20 +1,51 @@
 <!-- SPDX-License-Identifier: (GPL-2.0-only OR MIT) -->
 <!-- Copyright (C) 2026 Midgy BALON -->
 
-# Upstream-readiness assessment
+# Upstream-readiness
 
-Status of the display/PWM series toward mainline submission. Checked on the
-build host against v7.1 with `checkpatch.pl` and `dt_binding_check`.
-The work itself builds and dt-validates; the gaps below are about **submission
-form** and **missing binding docs**, not driver correctness.
+## Where it stands
 
-> **Update (2026-09):** this snapshot assessed the **display/PWM** series against a v7.1 base. The
-> current first submissions are small standalone fixes (pinctrl / mmc-pwrseq / mfd-axp20x) on
-> v7.3-rc3; the **display is not yet submission-ready** — colour (a YUV↔RGB conversion) and
-> continuous-refresh robustness are still open. Read the scorecard below as the display/PWM
-> readiness at the time, not the current submission plan.
+The port is split between **small standalone fixes** (submit now) and **larger subsystems**
+(gated). The guiding rules are in the linux-sunxi maintainer digest (base on the latest -rc, git
+branch + `git send-email`, small per-subsystem series, BSP = register lookup only, keep it terse).
 
-## Scorecard
+**Submittable now (small, self-contained):** the pinctrl voltage-withstand fix, `mmc-pwrseq`
+tolerate-missing-reset, and the `mfd: axp20x` poweroff/restart — all standalone, on a current -rc.
+
+**Gated / coordinate first:**
+- **CPU-CCU / cpufreq** — adopt Andre Przywara's A523/T527 CPU-CCU (v3, not yet merged); drop our
+  out-of-tree 0014–0020 when it lands. The PLL-lock poll must use
+  `readl_relaxed_poll_timeout_atomic()` (merged `clk-for-7.4`) — likely the real big-cluster-hang
+  fix. HW results go in as a *report*, not `Tested-by`, unless personally verified.
+- **Thermal** — don't submit our own; follow Kalashnikov's A523 THS (two nvmem cells) and add only
+  our board's `pwm-fan` cooling-map on top when it merges.
+- **Display (DSI/DE33)** — not submission-ready: colour (YUV↔RGB) and the panel-IC **heat** are
+  open, and it must land as the *whole chain* (bindings + driver) coordinated with the in-flight
+  H616 DE33 rework, not as a reverse-engineered binding ahead of a working driver. A 2026-10-09 HW
+  test showed the A523 DE latches via **direct AHB**, so the upstream form drops the BSP RCQ engine.
+
+**Do NOT carry:** the `sunxi_sram_claim()` memory-ordering patch (NAK'd by Jernej as a non-issue).
+
+## Binding / DTS conventions to satisfy (Krzysztof + A733-review)
+
+- Binding **header filename must match the compatible** string.
+- Clock/reset **indices are ABI**: start at 0/1, contiguous, no placeholder IDs for unexposed clocks
+  (number those only in the driver's private header).
+- Per-variant constraints go **inside `allOf:`**, not a bare top-level `if:`; keep compatible enums
+  sorted.
+- CCU style: `0`-suffix single instances; mark DMA/MMC/NOR-backing bus clocks `CLK_IS_CRITICAL`;
+  `const` reset maps; P-only helpers for no-M clocks.
+- I2C pin groups: `/omit-if-no-ref/` with `allwinner,pinmux=<2>`, `drive-strength=<10>`,
+  `bias-pull-up` — match the upstream `sun55i-a523.dtsi` pattern to avoid duplicate-node conflicts.
+- Pinctrl: keep the `interrupts` array on the upstream convention; `.irq_banks` must equal the DT
+  interrupt count exactly (a too-small value silently kills GPIO IRQs on the top bank).
+- Boot: some A523 clock + PRCM controls are secure-by-default — BL31 must open the security switches
+  (in TF-A, not SCMI) before Linux can use them.
+
+## History — the 2026-09 display/PWM scorecard
+
+The display/PWM series was assessed against **v7.1** with `checkpatch.pl` + `dt_binding_check`; the
+drivers built and dt-validated, and the gaps were about submission form, not correctness.
 
 | Artifact | checkpatch | dt_binding_check | Notes |
 |----------|-----------|------------------|-------|
@@ -23,45 +54,13 @@ form** and **missing binding docs**, not driver correctness.
 | `panel-trimui-smart-pro-s.c` | clean | — | |
 | `allwinner,sun55i-a523-dsi-combo-phy.yaml` | — | clean | |
 | `trimui,smart-pro-s-panel.yaml` | — | clean | |
-| `allwinner,sun20i-d1-pwm.yaml` (new) | — | clean | added this pass — closes the pwm "no schema" gap |
-| patches 0001–0008 | **0 errors** | — | regenerated as git format-patch + Signed-off-by; warnings remain (below) |
+| `allwinner,sun20i-d1-pwm.yaml` | — | clean | closes the pwm "no schema" gap |
+| patches 0001–0008 | 0 errors | — | regenerated as git format-patch + Signed-off-by |
 
-## checkpatch: the patch series
+Open checkpatch warnings at the time: split each binding hunk into its own patch (0001/0004/0008);
+wrap commit bodies ≤75 cols; drop `#`-leading commit-log lines (0004); give 0007's Kconfig a ≥4-line
+help paragraph. Bindings live in `kernel/bindings/` and aren't applied to the kernel
+`Documentation/` in our build flow, so a plain board `dt-validate` prints benign "no schema" lines.
 
-All three drivers are **clean**, and the **3 structural errors are now fixed**:
-the series was regenerated through git (`format-patch`), so every patch now has a
-proper `From`/`Date`/`Subject` envelope, a `---` separator + diffstat, real
-`diff --git` hunks, and a `Signed-off-by: Midgy BALON` line. checkpatch now
-reports **0 errors** on all 8 (verified on the host); they still apply cleanly
-via `patch -p1` (8/8) so the build flow is unchanged.
-
-Resolved this pass:
-1. ~~"Avoid using diff content in the commit message" + "Invalid commit
-   separator"~~ — fixed by the `git format-patch` envelope + `---` separator.
-2. ~~"Missing Signed-off-by:"~~ — added (`Signed-off-by: Midgy BALON`, the repo
-   author, at their direction).
-
-Warnings still open (out of scope for the structural fix):
-- **Bindings belong in their own patch** (0001 DSI, 0004 TCON, 0008 mixer mix a
-  binding change with the driver/dts change). Split each binding hunk out.
-- Wrap commit descriptions at ≤75 cols (0001, 0003, 0004).
-- 0004: drop commit-log lines starting with `#` (git treats them as comments).
-- 0007: give the Kconfig symbol a ≥4-line help paragraph.
-
-## Binding coverage
-
-- combo-phy, panel and the new pwm binding all pass `dt_binding_check`.
-- These bindings live in `kernel/bindings/` and are **not** applied to the kernel
-  `Documentation/` in our build flow, which is why a plain board `dt-validate`
-  still prints benign "no schema" lines for `combo-phy`, `panel` and (until now)
-  `pwm`. For upstream each ships as its own "dt-bindings:" patch.
-- The board top-level compatible (`trimui,smart-pro-s`) would be added to
-  `arm/sunxi.yaml` at submission time.
-
-## Boot chain — TF-A
-
-Re-checked TF-A master: **still no A523/sun55i platform** (`plat/allwinner` has
-only a64, h6, h616, r329). We use a real **`sun55i_a523` BL31 from Jernej Škrabec's
-`a523-v4` TF-A branch** — this cleared the earlier BL31 hang and is what boots on
-hardware; it is not yet in TF-A mainline. Upstream (or switch to a merged A523 plat)
-when one lands.
+**TF-A:** mainline has no A523/sun55i platform; we use a real `sun55i_a523` BL31 from Jernej
+Škrabec's `a523-v4` branch (not yet in TF-A mainline) — upstream or switch when an A523 plat lands.

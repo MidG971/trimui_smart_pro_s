@@ -1,121 +1,74 @@
 <!-- SPDX-License-Identifier: (GPL-2.0-only OR MIT) -->
 <!-- Copyright (C) 2026 Midgy BALON -->
 
-# Gamepad serdev driver — skeleton + DT nodes + fill-in workflow
+# Gamepad driver (in-kernel serdev) — status & history
 
-Drafted 2026-09-25 (offline). Driver skeleton:
-`kernel/drivers/gamepad-trimui-smart-pro-s.c`. The pad is two 19200-baud RX-only MCUs on
-**uart5 (ttyAS5, PK17)** and **uart7 (ttyAS7, PK13)**; together they carry the whole pad.
+## Where it stands
 
-## DT nodes (serdev children under the gamepad UARTs)
-The board DTS already enables `&uart5`/`&uart7` (`dts/sun55i-a523-trimui-smart-pro-s.dts:200`).
-Add a serdev child to each so the driver binds:
+**Done and working on hardware (2026-10-01):** an in-kernel **serdev** driver merges the two
+gamepad microcontrollers into a single virtual Xbox-360 pad ("TRIMUI Player1", `045e:028e`), with
+full button/axis mapping and **FF/rumble**. `evtest` passes end-to-end, rumble is felt, and the
+module **auto-loads** (installed to `/lib/modules` + `depmod`); the old userspace daemon is disabled.
+Driver: `kernel/drivers/gamepad-trimui-smart-pro-s.c`; build wiring (Kconfig/Makefile under
+`drivers/input/joystick/`) is `kernel/patches/0038`.
+
+**Hardware:** the pad is **two 19200-baud, RX-only MCUs** — `uart5` (ttyAS5, PK17) and `uart7`
+(ttyAS7, PK13) — each carrying half the controls; rumble is a PWM motor the driver owns. (The
+side-board only streams once **PK15 +5 V** is enabled — see `ON-DEVICE-FINDINGS.md`.)
+
+**Mapping** (matches the verified stock contract, `GAMEPAD-STOCK-GOAL.md`): D-pad → `ABS_HAT0X/Y`;
+L2/R2 → `ABS_Z/RZ` (digital 0/255); sticks → `±32767` with per-axis calibration, a 10 % integer
+deadzone, Y inverted. Both serdev instances share one `input_dev` via a kref'd module-level
+singleton (serdev children must live under their own UART controller, so they can't share a DT
+parent — the singleton keeps it trivial since there is exactly one pad).
+
+## DT (reference)
+
+Serdev children under the two gamepad UARTs (already in the board DTS). A serdev child has **no
+`reg`**, and binding it turns the port into a serdev bus — so `/dev/ttyAS5` / `/dev/ttyAS7`
+disappear (expected).
 
 ```dts
 &uart5 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart5_pk17_pin>;
 	status = "okay";
-
 	gamepad_left: gamepad {
 		compatible = "trimui,smart-pro-s-gamepad-left";
 		current-speed = <19200>;
 	};
 };
-
 &uart7 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart7_pk13_pin>;
 	status = "okay";
-
 	gamepad_right: gamepad {
 		compatible = "trimui,smart-pro-s-gamepad-right";
 		current-speed = <19200>;
 	};
 };
 ```
-(These nodes are now in the canonical board DTS. The compatibles were changed from
-`-uart5`/`-uart7` to `-left`/`-right` so they describe the MCU's function, not the
-wiring — the node already lives under the right UART controller.)
-Notes:
-- A serdev child has **no `reg`** (single device on the wire) and makes the port a serdev bus —
-  **`/dev/ttyAS5` and `/dev/ttyAS7` disappear** once the driver binds. That's expected.
-- **CAPTURE vs serdev are mutually exclusive** on a UART: to reverse-engineer the protocol you
-  read the raw **tty** (`/dev/ttyAS5`), which needs NO serdev child. So do the capture FIRST with
-  the current tty DT, then add these nodes to switch to the driver. Keep the two states separate
-  (e.g. a `-capture`/`-serdev` overlay) while iterating.
+Compatibles are `-left` / `-right` (the MCU's function), not `-uart5`/`-uart7` (the node already
+lives under the right controller). Rumble `pwms` + `vcc-supply` are gated to the LEFT node.
 
-## Kconfig / Makefile — FINAL (in-tree build-validated 2026-10-06)
-Upstream home: **`drivers/input/joystick/gamepad-trimui-smart-pro-s.c`**.
+## Upstream status / what's left
 
-`drivers/input/joystick/Kconfig` (inside the `if INPUT_JOYSTICK` block, before `endif`):
-```
-config JOYSTICK_TRIMUI_SMART_PRO_S
-	tristate "Trimui Smart Pro S gamepad"
-	depends on SERIAL_DEV_BUS
-	select INPUT_FF_MEMLESS
-	help
-	  Say Y here to enable support for the gamepad on the Trimui Smart Pro S
-	  handheld (Allwinner A523). Two RX-only serial microcontrollers (one per
-	  half of the pad) are merged into a single virtual gamepad, with rumble
-	  force-feedback on an integrated PWM motor.
+Upstream home: `drivers/input/joystick/gamepad-trimui-smart-pro-s.c`; binding
+`Documentation/devicetree/bindings/input/trimui,smart-pro-s-gamepad.yaml` (two compatibles,
+`current-speed` const 19200, `pwms`+`vcc-supply` gated to the left node via `allOf`/`if`). Remaining
+before submission: run `dt_binding_check` (needs a dtschema host), the binding header/compatible
+naming per the Krzysztof conventions, and keep the posting terse with HW results framed as a report
+(not `Tested-by`) — see `[[linux-sunxi-maintainer-guidance]]`.
 
-	  To compile this driver as a module, choose M here; the module will be
-	  called gamepad-trimui-smart-pro-s.
-```
-`drivers/input/joystick/Makefile`:
-```
-obj-$(CONFIG_JOYSTICK_TRIMUI_SMART_PRO_S)	+= gamepad-trimui-smart-pro-s.o
-```
-- `select INPUT_FF_MEMLESS` is required for the FF_RUMBLE path (`input_ff_create_memless`).
-- PWM + regulator are used for rumble but handled gracefully if absent (no hard Kconfig dep).
-- Also ensure `CONFIG_SERIAL_DEV_BUS=y` + `CONFIG_SERIAL_DEV_CTRL_TTYPORT=y`.
-- **Validated:** `make olddefconfig` makes the symbol reachable (auto-selects INPUT_FF_MEMLESS)
-  and the module builds in-tree (vermagic 7.2.0-rc3-dirty) on the laptop local-build tree.
+## How we got here (history)
 
-## DT binding
-`kernel/bindings/trimui,smart-pro-s-gamepad.yaml` (upstream:
-`Documentation/devicetree/bindings/input/trimui,smart-pro-s-gamepad.yaml`). Two compatibles
-(`-left`/`-right`), `current-speed` const 19200, and `pwms` + `vcc-supply` gated to the LEFT
-(rumble-motor) node via an `allOf`/`if`. YAML parses clean; **`dt_binding_check` still TODO**
-(needs the `dtschema` python package — not installable on the laptop today; run on the build
-server or a dtschema-equipped host).
-
-## Fill-in workflow (what makes the skeleton real)
-Everything marked `TODO(protocol-map)` in the driver comes from the capture analysis:
-1. **Capture (device up, NO serdev child):** on mainline the vendor daemon is absent, so read the
-   raw stream straight off the tty — one file per held control. Minimal, no app needed:
-   ```sh
-   stty -F /dev/ttyS2 19200 raw -echo
-   timeout 3 cat /dev/ttyS2 > gp5-neutral.bin      # nothing held
-   timeout 3 cat /dev/ttyS2 > gp5-A.bin            # hold A ... etc per control
-   # repeat for /dev/ttyAS7
-   ```
-   (Or use the existing `gamepad-logger/` app on stock; but the mainline tty path is simpler now
-   that PK15 side-board +5V is enabled and the MCUs stream — see [[input-output-subsystem-bringup]].)
-2. **Analyze (offline):** `python3 gamepad-logger/analyze-gamepad.py <dir>` → `protocol-map.json`
-   (frame length, sync byte+offset, per-button byte+bit, per-axis byte+range, per UART).
-3. **Fill the driver:** transcribe the map into `trimui_gp_uart5`/`trimui_gp_uart7`
-   (`frame_len`, `sync_byte`, `sync_off`, `active_low`) and the `trimui_gp_btns_*` /
-   `trimui_gp_axes_*` tables (currently empty stubs). Pick BTN_/ABS_ codes to match an Xbox-style
-   pad (BTN_A/B/X/Y, BTN_TL/TR, ABS_X/Y/RX/RY, ABS_Z/RZ for L2/R2, BTN_THUMBL/R, HAT for D-pad).
-4. **Build (needs compile server or laptop kit):** add the Kconfig/Makefile, build the module,
-   deploy. Until filled, the driver frame-syncs and logs only (reports no events) — safe to load.
-
-## Single-pad merge — DONE (2026-10-01)
-The driver is no longer a skeleton. The two serdev instances share ONE `input_dev`
-("TRIMUI Player1", BUS_USB 045e:028e) via a kref'd module-level singleton: the first
-to probe builds + registers the pad, the second reuses it, and it is torn down when
-the last instance unbinds. (A DT phandle linking the two nodes was the alternative,
-but serdev nodes must be children of their UART controllers so they cannot share a
-DT parent; the singleton keeps the binding trivial since there is exactly one pad.)
-
-Mapping matches the verified stock/daemon contract (docs/GAMEPAD-STOCK-GOAL.md):
-D-pad → `ABS_HAT0X/Y` (−1/0/+1); L2/R2 → `ABS_Z/RZ` (digital 0/255); sticks →
-`±32767` with per-axis calibration, a 10% deadzone (integer-scaled, no kernel FP),
-and Y inverted (Xbox up = negative). FF/rumble is NOT yet wired (follow-up — stock
-routes `FF_RUMBLE` to the pwm-vibrator; in-kernel this needs a cross-device forward).
-
-Build (out-of-tree against the 7.2-rc3 tree, vermagic `7.2.0-rc3-dirty`):
-`make -C <kernel> M=<dir> ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules`.
-Built `.ko` staged at `kernel/modules/gamepad-trimui-smart-pro-s.ko`.
+1. **Skeleton (2026-09-25, offline)** — serdev driver + DT nodes drafted; frame-sync + logging only.
+2. **Protocol reverse-engineering** — with no serdev child bound, the raw tty was read one capture
+   per held control (`stty -F /dev/ttyAS5 19200 raw`; `cat` per button/axis), analysed offline into
+   a protocol map (frame length, sync byte/offset, per-button byte/bit, per-axis byte/range).
+3. **Fill** — the map was transcribed into the per-UART frame descriptors + button/axis tables, with
+   Xbox-style `BTN_`/`ABS_` codes.
+4. **Single-pad merge (2026-10-01)** — the kref'd singleton `input_dev` replaced the two-device
+   approach.
+5. **FF/rumble + persistence** — rumble wired to the PWM motor, module installed + depmod'd for
+   auto-load; verified on hardware.
