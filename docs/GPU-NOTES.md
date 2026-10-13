@@ -156,3 +156,32 @@ governor → load with `glmark2` → sample `drm-cycles-*`/`drm-curfreq-*` from 
 pair and flags the maskdiv overclock if `measured > programmed`. Run: `sh hw-verify.sh gpu`.
 That row is the concrete give-back to the ut-slayer / maskdiv effort — an independent
 Mali-G57 confirmation of the fix.
+
+## Vulkan on the G57 — PanVK (open) vs MaliSX2 (closed)
+
+For Vulkan-class workloads (e.g. PS2 emulation / PCSX2) there are two routes, and only one fits this
+mainline / Panfrost port.
+
+**PanVK (open — our path).** Mesa's Vulkan driver for Panfrost. Status (Mesa `docs/drivers/panfrost.html`,
+2026-10): supports Bifrost and later, incl. Valhall **v9–v11** — but our **G57 is Valhall v9
+(first-gen)**, where PanVK is **experimental**: it **refuses to load by default** (force it with
+`PAN_I_WANT_A_BROKEN_VULKAN_DRIVER=1`), with "no guarantees — may be broken, may need a newer kernel,
+may be removed." Vulkan **conformance** is documented only for **Mali-G610 (Valhall v10, Vulkan 1.4)**;
+**v9/G57 has none yet**. So today: **GLES via Panfrost is solid; Vulkan via PanVK on the G57 is
+experimental/opt-in** → track its maturity. Being Mesa (open), PanVK is the Vulkan driver we can actually
+ship and eventually rely on — and improving its Valhall-v9 support is the real open-source opportunity.
+
+**MaliSX2 (closed — not portable here).** ARMSX2 2.8.3 ships "MaliSX2", a Vulkan driver that runs PS2
+full-speed on a G57 — useful *proof the hardware is capable*. But it is **not something we can port or
+carry**: it has **no public source** (closed/undisclosed, shipped as a binary inside an Android app), it
+targets **Android**, and it requires **ARM's proprietary `kbase` kernel driver** (libmali-class) — the
+exact closed, un-upstreamable stack this port deliberately replaced with Panfrost.
+- **Mainline?** N/A — a userspace Vulkan driver isn't "mainlined"; its kernel side is `kbase`, which
+  mainline rejected in favour of Panfrost.
+- **Out-of-tree carry in this repo?** No: we can't legally redistribute ARM's Mali blobs or a closed
+  MaliSX2, it won't run on our mainline Debian/Mesa stack without an Android compat shim, and loading
+  `kbase` means dropping Panfrost (they can't co-bind the GPU). The max-perf Android stack is a
+  device-vendor/Android path — out of scope for this mainline effort.
+- **Our equivalent = PanVK** (above). (Same "open vs vendor-blob, daily-driver-phase" shape as
+  [`NPU-ENABLEMENT-PLAN.md`](NPU-ENABLEMENT-PLAN.md).) Caveat: full-speed PS2 is a heavy GPU+CPU load →
+  heat; on-demand only.
