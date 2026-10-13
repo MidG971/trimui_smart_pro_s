@@ -14,6 +14,7 @@
  * HW-UNVERIFIED until modetest lights a pixel (hardware-testing-prevails).
  */
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/clock/sun8i-tcon-top.h>
 
 /* enable the DE33 pipeline (0036 defaults these disabled) */
 &de {
@@ -41,12 +42,8 @@
 			clocks = <&ccu CLK_BUS_TCON_LCD1>, <&ccu CLK_TCON_LCD1>;
 			clock-names = "ahb", "tcon-ch0";
 			clock-output-names = "tcon-pixel-clock1";
-			/*
-			 * Pre-set tcon-ch0 to 372 MHz (= dclk 93 MHz * 4) so that
-			 * pll-video0 is retuned and valid *before* the DSI mode_set
-			 * sets the dclk rate (otherwise the parent reads 0 at that
-			 * instant and the dclk is left at 0).
-			 */
+			/* Pre-set tcon-ch0 to 372 MHz (= dclk 93 MHz * 4) so pll-video0 is
+			 * retuned+valid BEFORE the DSI mode_set sets the dclk rate. */
 			assigned-clocks = <&ccu CLK_TCON_LCD1>;
 			assigned-clock-rates = <372000000>;
 			resets = <&ccu RST_BUS_TCON_LCD1>, <&ccu RST_BUS_LVDS1>;
@@ -69,15 +66,9 @@
 					reg = <1>;
 					#address-cells = <1>;
 					#size-cells = <0>;
-					/*
-					 * endpoint@1 (reg=1), like mainline A64 tcon0_out_dsi@1.
-					 * sun4i_tcon_probe calls drm_of_find_panel_or_bridge(node,
-					 * port 1, endpoint 0): with the endpoint at reg 1 that lookup
-					 * returns -ENODEV (not the DSI host, which is neither a panel
-					 * nor a bridge), so the TCON stops deferring and binds; the DSI
-					 * links back via its own port. HW-verified: this is what brings
-					 * up card0 + the DSI-1 connector.
-					 */
+					/* endpoint@1 (reg=1) like A64 tcon0_out_dsi@1: keeps
+					 * drm_of_find_panel_or_bridge(tcon,1,0) from matching the
+					 * DSI host (not a panel/bridge) and deferring forever. */
 					tcon1_out_dsi1: endpoint@1 {
 						reg = <1>;
 						remote-endpoint = <&dsi1_in_tcon1>;
@@ -109,11 +100,8 @@
 		dsi1_combo_phy: phy@5509000 {
 			compatible = "allwinner,sun55i-a523-dsi-combo-phy";
 			reg = <0x05509000 0x1000>;
-			/*
-			 * bus = the APB register clock (CLK_BUS_MIPI_DSI1) — was
-			 * missing, so the whole PHY register block read all-zero and
-			 * the DISPLL never locked; mod = the PHY functional clock.
-			 */
+			/* bus = APB register clock (was missing -> block read all-zero);
+			 * mod = PHY functional/reference clock */
 			clocks = <&ccu CLK_BUS_MIPI_DSI1>, <&ccu CLK_COMBOPHY_DSI1>;
 			clock-names = "bus", "mod";
 			resets = <&ccu RST_BUS_MIPI_DSI1>;
@@ -124,12 +112,11 @@
 };
 
 /*
- * Disable the TCON-TV: this handheld has no HDMI/TV output, and because
- * tcon_tv0 binds before tcon-lcd1 it grabs CRTC 0 — but the sun6i DSI
- * encoder is hardcoded to possible_crtcs = BIT(0). That put the DSI on the
- * TCON-TV (has_channel_0 = false), so sun4i_dclk_create() never ran and the
- * pixel clock (dclk) was NULL. Disabling it makes tcon-lcd1 CRTC 0, so the
- * DSI drives the LCD TCON and the dclk is created (verified: dclk = 93 MHz).
+ * Disable the TCON-TV: this handheld has no HDMI, and because tcon_tv0
+ * binds before tcon-lcd1 it grabs CRTC 0 -- but the DSI encoder is
+ * hardcoded to possible_crtcs = BIT(0). That put the DSI on the TCON-TV
+ * (has_channel_0 = false), so sun4i_dclk_create() never ran and dclk was
+ * NULL. Disabling it makes tcon-lcd1 CRTC 0 so the DSI drives it.
  */
 &tcon_tv0 {
 	status = "disabled";

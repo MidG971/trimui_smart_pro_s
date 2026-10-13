@@ -1,0 +1,176 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR MIT)
+// Copyright (C) 2026 Midgy BALON
+/*
+ * Reconstructed A523 DE33 display pipeline (the HW-proven "solve" DT).
+ *
+ * This is the real DE33 model (de + bus@5000000{display_clocks,mixer0} +
+ * tcon_top + tcon_tv0 + HDMI tail + the DE SRAM section), modelled on sun50i-h6
+ * and adapted to the A523 (compatibles allwinner,sun55i-a523-de33-mixer-0 /
+ * -tcon-top). It was reverse-engineered on hardware (ut-slayer DE33 base) and
+ * previously lived ONLY in the dirty build tree -- captured here so the display
+ * is reproducible from the mirror. SUPERSEDES the disabled-skeleton de/display-top
+ * of kernel/patches/0003.
+ *
+ * Pair with trimui-de-reconcile.dtsi (wires mixer0 -> tcon_top[1] -> our
+ * tcon-lcd1 -> dsi1 -> panel, disables the HDMI tcon_tv0) and trimui-panel.dtsi.
+ * Deps on v7.3-rc7: &syscon + the CLK_HDMI, CLK_TCON_TV0/CLK_BUS_DISPLAY0_TOP +
+ * PD_DE/PD_GPU/PD_VO0 macros are all present. Build-verify (make dtbs) on rebase.
+ */
+#include <dt-bindings/clock/sun8i-tcon-top.h>
+#include <dt-bindings/clock/sun8i-de2.h>
+#include <dt-bindings/reset/sun8i-de2.h>
+
+
+/ {
+	de: display-engine {
+		compatible = "allwinner,sun50i-h6-display-engine";
+		allwinner,pipelines = <&mixer0>;
+		status = "disabled";
+	};
+
+	soc {
+		bus@5000000 {
+			compatible = "allwinner,sun50i-h616-de33",
+				     "allwinner,sun50i-a64-de2";
+			reg = <0x5000000 0x400000>;
+			allwinner,sram = <&de_sram 1>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0 0x5000000 0x400000>;
+
+			display_clocks: clock@8000 {
+				compatible = "allwinner,sun50i-h616-de33-clk";
+				reg = <0x8000 0x100>;
+				clocks = <&ccu CLK_DE>, <&ccu CLK_BUS_DE>;
+				clock-names = "mod", "bus";
+				resets = <&ccu RST_BUS_DE>;
+				power-domains = <&pck600 PD_DE>;
+				#clock-cells = <1>;
+				#reset-cells = <1>;
+			};
+
+			mixer0: mixer@100000 {
+				compatible = "allwinner,sun55i-a523-de33-mixer-0";
+				reg = <0x100000 0x100000>,
+				      <0x8100 0x40>,
+				      <0x280000 0x20000>,
+				      <0x8000 0x60>;
+				reg-names = "engine", "top", "display", "detop";
+				clocks = <&display_clocks CLK_BUS_MIXER0>,
+					 <&display_clocks CLK_MIXER0>;
+				clock-names = "bus", "mod";
+				resets = <&display_clocks RST_MIXER0>;
+				power-domains = <&pck600 PD_DE>;
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					mixer0_out: port@1 {
+						reg = <1>;
+
+						mixer0_out_tcon_top_mixer0: endpoint {
+							remote-endpoint = <&tcon_top_mixer0_in_mixer0>;
+						};
+					};
+				};
+			};
+		};
+
+		tcon_top: tcon-top@5500000 {
+			compatible = "allwinner,sun55i-a523-tcon-top";
+			reg = <0x5500000 0x1000>;
+			clocks = <&ccu CLK_BUS_DISPLAY0_TOP>,
+				 <&ccu CLK_TCON_TV0>;
+			clock-names = "bus", "tcon-tv0";
+			clock-output-names = "tcon-top-tv0";
+			resets = <&ccu RST_BUS_DISPLAY0_TOP>;
+			#clock-cells = <1>;
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				tcon_top_mixer0_in: port@0 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <0>;
+
+					tcon_top_mixer0_in_mixer0: endpoint@0 {
+						reg = <0>;
+						remote-endpoint = <&mixer0_out_tcon_top_mixer0>;
+					};
+				};
+
+				tcon_top_mixer0_out: port@1 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <1>;
+
+					tcon_top_mixer0_out_tcon_tv0: endpoint@2 {
+						reg = <2>;
+						remote-endpoint = <&tcon_tv0_in_tcon_top_mixer0>;
+					};
+				};
+
+				tcon_top_hdmi_in: port@4 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <4>;
+
+					tcon_top_hdmi_in_tcon_tv0: endpoint@0 {
+						reg = <0>;
+						remote-endpoint = <&tcon_tv0_out_tcon_top>;
+					};
+				};
+
+			};
+		};
+
+		tcon_tv0: lcd-controller@5503000 {
+			compatible = "allwinner,sun50i-h6-tcon-tv",
+				     "allwinner,sun8i-r40-tcon-tv";
+			reg = <0x5503000 0x1000>;
+			interrupts = <GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_TCON_TV0>,
+				 <&tcon_top CLK_TCON_TOP_TV0>;
+			clock-names = "ahb", "tcon-ch1";
+			resets = <&ccu RST_BUS_TCON_TV0>;
+			reset-names = "lcd";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				tcon_tv0_in: port@0 {
+					reg = <0>;
+
+					tcon_tv0_in_tcon_top_mixer0: endpoint {
+						remote-endpoint = <&tcon_top_mixer0_out_tcon_tv0>;
+					};
+				};
+
+				tcon_tv0_out: port@1 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					reg = <1>;
+
+					tcon_tv0_out_tcon_top: endpoint@1 {
+						reg = <1>;
+						remote-endpoint = <&tcon_top_hdmi_in_tcon_tv0>;
+					};
+				};
+			};
+		};
+
+	};
+};
+
+&syscon {
+	/* DE (display engine) SRAM region claimed by the DE33 bus */
+	de_sram: sram-section@0 {
+		compatible = "allwinner,sun50i-h616-sram-c",
+			     "allwinner,sun50i-a64-sram-c";
+		reg = <0x0000 0x1e000>;
+	};
+};
