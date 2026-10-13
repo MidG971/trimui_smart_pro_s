@@ -22,6 +22,28 @@
 
 
 / {
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/*
+		 * Low CMA pool for the DE33 RCQ ring + framebuffers. The display
+		 * engine's DMA can only reach ~0x4b000000, so the pool must sit in
+		 * low DRAM (0x43000000-0x48000000). Without this pin the RCQ ring
+		 * lands high and the mixer bind fails ("RCQ pool @... exceeds DE DMA
+		 * reach 0x4b000000; refusing RCQ") -> -34, panel shows white/fractal.
+		 * This replaces the kernel's auto-placed default CMA (HW-proven on 7.2).
+		 */
+		de_cma: linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0x0 0x4000000>;
+			alloc-ranges = <0x0 0x43000000 0x0 0x5000000>;
+			linux,cma-default;
+		};
+	};
+
 	de: display-engine {
 		compatible = "allwinner,sun50i-h6-display-engine";
 		allwinner,pipelines = <&mixer0>;
@@ -61,6 +83,9 @@
 				clock-names = "bus", "mod";
 				resets = <&display_clocks RST_MIXER0>;
 				power-domains = <&pck600 PD_DE>;
+				/* RCQ ring + fb must come from the low de_cma pool above
+				 * (the DE DMA only reaches ~0x4b000000). */
+				memory-region = <&de_cma>;
 
 				ports {
 					#address-cells = <1>;
