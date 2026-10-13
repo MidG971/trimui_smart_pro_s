@@ -185,3 +185,25 @@ exact closed, un-upstreamable stack this port deliberately replaced with Panfros
 - **Our equivalent = PanVK** (above). (Same "open vs vendor-blob, daily-driver-phase" shape as
   [`NPU-ENABLEMENT-PLAN.md`](NPU-ENABLEMENT-PLAN.md).) Caveat: full-speed PS2 is a heavy GPU+CPU load →
   heat; on-demand only.
+
+### Participating in PanVK maturation (post-mainline)
+
+Once the device is **clean-mainline** (upstream Mesa + kernel, none of our out-of-tree carries), it's a
+cheap, available **Valhall-v9 / Mali-G57** reference — the generation where PanVK is still experimental
+and unconformant (most prior work targeted v10 / G610). A natural, high-leverage way to contribute, in
+effort order:
+
+1. **Test + triage** — run the **Vulkan CTS** and real apps (vkmark, PCSX2, Dolphin, Zink), publish pass
+   rates, and file regressions on Mesa GitLab with apitrace / gfxreconstruct captures. Rising CTS numbers
+   are what flip a generation from "experimental" to default-on. CTS runs **headless** off the render
+   node, so the display isn't a prerequisite.
+2. **CI runner** — add the board to Mesa's hardware CI (LAVA) as a Valhall-v9 runner, so per-MR
+   regressions are caught on real G57 silicon.
+3. **Conformance** — drive an official **v9 Vulkan conformance submission** (the milestone that makes
+   PanVK load by default on the G57).
+4. **Driver fixes** (stretch) — targeted PanVK v9 fixes; needs a Mesa-Vulkan + Mali-ISA ramp.
+
+**Gate:** finish the mainline bring-up first — a clean upstream stack is needed for reproducible, filable
+bugs. **Caveat:** CTS / real-app runs are long and GPU-heavy, so the thermal/fan behaviour has to hold.
+Coordinate on `#panfrost` (OFTC) + Mesa GitLab rather than duplicating. The `hw-verify.sh gpu` harness
+(programmed-vs-measured clock check) is the seed for a test rig.
