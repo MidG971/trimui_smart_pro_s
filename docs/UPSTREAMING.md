@@ -15,15 +15,18 @@ The board boots mainline on hardware, so submission has started. The **small sta
 two-nvmem-cell THS; and the **display** is the long haul, gated behind the H616 DE33 rework. Per-item
 state in [`UPSTREAM-READINESS.md`](UPSTREAM-READINESS.md).
 
-> **v7.3-rc7 convergence (Oct 2026).** Much of the series has now **landed upstream** and is dropped
-> from what we carry: the **A523 CPU-CCU** (Andre's `ccu-sun55i-a523-cpu`, our 0014–0020), the
-> **THS thermal** driver (Kalashnikov, 0021–0023), the **A523 audio-codec** quirks (0026–0032), the
-> **pinctrl** fix (0032), and the **AXP20x** power-off/restart (0024/0036). The port **builds cleanly
-> on v7.3-rc7**; `build-trimui-kernel.sh` auto-skips an already-upstream patch (`patch --forward`), so
-> the old patch files are kept for history and simply no-op on a current tree. What remains ours:
-> display (DE33, still gated on the H616 rework), PWM, gamepad, LRADC keys, the small DT, and the
-> out-of-tree AIC8800 (now with a v7.3 cfg80211 delta). These are **build-verified**; on-device
-> validation on 7.3 is pending (the device still runs the HW-proven v7.2-rc3).
+> **v7.3-rc7 status (Oct 2026).** Two of the tracked series genuinely **landed upstream** and are
+> dropped on 7.3: the **pinctrl voltage-withstand** fix (0032) and the **AXP20x** power-off/restart
+> (0024/0036). The **A523 CPU-CCU** (0014–0020), **THS thermal** (0021–0023), and **audio codec**
+> (0026–0032) were *posted* upstream (Andre's CPU-CCU v3, Kalashnikov THS v6, Chen-Yu's codec) but are
+> **not in v7.3-rc7**, so we **still carry** them — an earlier revision of this note wrongly listed
+> them as merged (verify drops against the actual tree, not against "it was upstreamed"). `build-trimui-kernel.sh`
+> applies the full series and `--forward`-skips whatever is already present, so the recipe is correct
+> either way. **On 7.3 hardware:** THS (0021-0023) + `dts/staging/trimui-thermal.dtsi` are re-applied and
+> **thermals work** (5 zones + pwm-fan). **cpufreq** (CPU-CCU) and **audio** (codec) are currently off on
+> the 7.3 build pending a patch rebase (0017/0018/0020 and 0026-0028/0031 need updating for rc7). Display
+> binds with the mixer `reserved-memory` CMA; `vblank`/`flip_done` per-frame updates are WIP. Still ours:
+> display (DE33), PWM, gamepad, LRADC keys, the small DT, and the out-of-tree AIC8800 (v7.3 cfg80211 delta).
 
 ## The one rule: hardware-tested first
 

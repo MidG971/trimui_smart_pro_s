@@ -40,14 +40,19 @@ GPU** (Panfrost), the RTC, and — the latest — **on-board WiFi** (AIC8800D80 
 device reachable **headless over Tailscale**.
 
 **Kernel base — tracking the latest rc.** The port is maintained against mainline's newest release
-candidate. As of **v7.3-rc7** (Oct 2026) the series has shrunk considerably: the A523 CPU-CCU,
-thermal sensor (THS), audio codec, pinctrl and AXP20x power-off patches we used to carry have all
-landed upstream, so they are dropped from our set. The full stack — kernel Image, every module, the
-display-engine (DE33) device tree, the clean-regenerated LRADC patch, and the AIC8800 WiFi
-out-of-tree driver — **builds cleanly on v7.3-rc7**; the 7.3 cfg80211 cookie-by-value API change is
-handled by `kernel/aic8800/aic8800-warpme-v7.3.patch`. On-device validation of the 7.3 build is still
-pending — the device described above runs the HW-proven **v7.2-rc3**, and these build-verified 7.3
-results do not yet override that (see `CONTRIBUTING.md` on reproducibility).
+candidate, and the device dual-boots **v7.2-rc3** (the long-proven baseline) and **v7.3-rc7** via
+`extlinux`. Of the patches we had tracked for upstreaming, two genuinely merged and are dropped on 7.3
+— the **pinctrl voltage-withstand** fix and the **AXP20x power-off/restart**. The **A523 CPU-CCU
+(cpufreq)**, **THS thermal**, and **audio codec** series were *posted* upstream but are **not in
+v7.3-rc7 yet**, so we still carry them (an earlier note here wrongly called them merged). The 7.3
+cfg80211 cookie-by-value API change is handled by `kernel/aic8800/aic8800-warpme-v7.3.patch`.
+
+**v7.3-rc7 on hardware (validated):** boots, Wi-Fi/Tailscale, eMMC/SD, and **thermals** (5 zones +
+temperature-controlled `pwm-fan`, via the re-applied THS patches `0021-0023` + `dts/staging/trimui-thermal.dtsi`)
+all work on the device. The **display** engine binds and shows an image once the mixer gets a low
+`reserved-memory` CMA pool (the DE DMA only reaches `0x4b000000`); per-frame updates (`vblank`/`flip_done`)
+are still being brought up. Currently **off** on the 7.3 build pending a patch rebase: **cpufreq** (CPU-CCU)
+and **audio** (codec). See `CONTRIBUTING.md` on reproducibility — on-device results override build-only claims.
 
 **What cracked the months-long boot blocker** — all three were SPL-stage config bugs, all
 found the moment a UART gave us eyes, and *none* were what we'd theorized:
