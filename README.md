@@ -39,6 +39,16 @@ USB-power detection straight from the AXP717 hardware E-gauge), **USB2** host, t
 GPU** (Panfrost), the RTC, and — the latest — **on-board WiFi** (AIC8800D80 → `wlan0`), with the
 device reachable **headless over Tailscale**.
 
+**Kernel base — tracking the latest rc.** The port is maintained against mainline's newest release
+candidate. As of **v7.3-rc7** (Oct 2026) the series has shrunk considerably: the A523 CPU-CCU,
+thermal sensor (THS), audio codec, pinctrl and AXP20x power-off patches we used to carry have all
+landed upstream, so they are dropped from our set. The full stack — kernel Image, every module, the
+display-engine (DE33) device tree, the clean-regenerated LRADC patch, and the AIC8800 WiFi
+out-of-tree driver — **builds cleanly on v7.3-rc7**; the 7.3 cfg80211 cookie-by-value API change is
+handled by `kernel/aic8800/aic8800-warpme-v7.3.patch`. On-device validation of the 7.3 build is still
+pending — the device described above runs the HW-proven **v7.2-rc3**, and these build-verified 7.3
+results do not yet override that (see `CONTRIBUTING.md` on reproducibility).
+
 **What cracked the months-long boot blocker** — all three were SPL-stage config bugs, all
 found the moment a UART gave us eyes, and *none* were what we'd theorized:
 
@@ -156,7 +166,7 @@ hardware facts or test patches.
 
 ```bash
 ./compile.sh                                   # board DTB only (syntax-level)
-./kernel/build-trimui-kernel.sh <v7.2-src>     # full kernel: patches + drivers + dtbs
+./kernel/build-trimui-kernel.sh <kernel-src>   # full kernel: patches + drivers + dtbs (v7.3-rc7)
 ```
 
 Details and validation gates: [Building](https://github.com/MidG971/trimui_smart_pro_s/wiki/Building).

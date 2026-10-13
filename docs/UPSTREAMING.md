@@ -15,6 +15,16 @@ The board boots mainline on hardware, so submission has started. The **small sta
 two-nvmem-cell THS; and the **display** is the long haul, gated behind the H616 DE33 rework. Per-item
 state in [`UPSTREAM-READINESS.md`](UPSTREAM-READINESS.md).
 
+> **v7.3-rc7 convergence (Oct 2026).** Much of the series has now **landed upstream** and is dropped
+> from what we carry: the **A523 CPU-CCU** (Andre's `ccu-sun55i-a523-cpu`, our 0014–0020), the
+> **THS thermal** driver (Kalashnikov, 0021–0023), the **A523 audio-codec** quirks (0026–0032), the
+> **pinctrl** fix (0032), and the **AXP20x** power-off/restart (0024/0036). The port **builds cleanly
+> on v7.3-rc7**; `build-trimui-kernel.sh` auto-skips an already-upstream patch (`patch --forward`), so
+> the old patch files are kept for history and simply no-op on a current tree. What remains ours:
+> display (DE33, still gated on the H616 rework), PWM, gamepad, LRADC keys, the small DT, and the
+> out-of-tree AIC8800 (now with a v7.3 cfg80211 delta). These are **build-verified**; on-device
+> validation on 7.3 is pending (the device still runs the HW-proven v7.2-rc3).
+
 ## The one rule: hardware-tested first
 
 sunxi/upstream culture is **tested-on-hardware-first**. Almost nothing lands before

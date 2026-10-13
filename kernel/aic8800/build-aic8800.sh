@@ -3,9 +3,10 @@
 # Copyright (C) 2026 Midgy BALON
 #
 # Build the AIC8800 WiFi + Bluetooth kernel modules for the Trimui Smart Pro S
-# against a mainline kernel tree (tested: v7.2-rc1). Fetches warpme/minimyth2's
-# AIC8800 SDIO backport (pinned), applies our small v7.1->v7.2 delta, and builds
-# the driver OUT-OF-TREE (make M=):
+# against a mainline kernel tree (tested: v7.2-rc1, v7.3-rc7). Fetches
+# warpme/minimyth2's AIC8800 SDIO backport (pinned), applies our small per-release
+# deltas (v7.1->v7.2, then v7.2->v7.3 for the cfg80211 cookie-by-value API), and
+# builds the driver OUT-OF-TREE (make M=):
 #   aic8800_bsp.ko, aic8800_fdrv.ko (WiFi), aic8800_btlpm.ko (Bluetooth).
 #
 # The AIC8800 has no mainline driver, so these are out-of-tree modules. The RF
@@ -25,6 +26,13 @@ KSRC="$(cd "${1:?usage: build-aic8800.sh <kernel-src-dir> [work-dir]}" && pwd)"
 WORK="${2:-$PWD/aic8800-build}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 export ARCH=arm64 CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
+
+# Target kernel VERSION.PATCHLEVEL (e.g. 7 3) -> which per-release deltas to apply.
+KVER=$(sed -n 's/^VERSION = //p'    "$KSRC/Makefile")
+KPL=$(sed -n  's/^PATCHLEVEL = //p' "$KSRC/Makefile")
+# integer MMmm for easy comparison (7.3 -> 703, 7.2 -> 702)
+KNUM=$(( KVER * 100 + KPL ))
+echo "== target kernel: ${KVER}.${KPL} (KNUM=${KNUM}) =="
 
 # Pinned AIC8800 source: warpme/minimyth2's in-tree SDIO backport, snapshot
 # v2025_0926 (driver fdrv 6.4.3.0 — the version that ships in the Trimui stock
@@ -59,6 +67,15 @@ patch -p1 -f --no-backup-if-mismatch <"../$FIX"  >/dev/null 2>&1 || true
 
 echo "== applying Trimui v7.2 delta (aic8800-warpme-v7.2.patch) =="
 patch -p1 <"$HERE/aic8800-warpme-v7.2.patch"
+
+# v7.3 cfg80211 refactor: remain_on_channel/mgmt_tx cookie passed BY VALUE (was
+# u64 *), cfg80211_probe_status() grew a link_id arg, and .probe_client was
+# dropped from cfg80211_ops. The delta is version-guarded (no effect < 7.3) and
+# is cumulative on top of v7.2. Bump this when the next rc moves the API again.
+if [ "$KNUM" -ge 703 ]; then
+	echo "== applying Trimui v7.3 delta (aic8800-warpme-v7.3.patch) =="
+	patch -p1 <"$HERE/aic8800-warpme-v7.3.patch"
+fi
 
 echo "== building modules (make M=) against $KSRC =="
 make -C "$KSRC" -j"$(nproc)" ARCH=arm64 CROSS_COMPILE="$CROSS_COMPILE" \
