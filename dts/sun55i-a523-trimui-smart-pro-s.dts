@@ -909,4 +909,5 @@
 
 #include "trimui-de-reconcile.dtsi"
 #include "trimui-panel.dtsi"
+#include "trimui-thermal.dtsi"
 

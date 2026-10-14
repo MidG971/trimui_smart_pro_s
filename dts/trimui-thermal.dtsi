@@ -55,40 +55,47 @@
 
 	thermal-zones {
 		cpul_thermal: cpul-thermal {
-			polling-delay-passive = <100>;
+			polling-delay-passive = <250>;
 			polling-delay = <1000>;
 			thermal-sensors = <&ths 1>;	/* little cluster */
 
 			trips {
-				cpul_warn: cpu-warn { temperature = <70000>; hysteresis = <2000>; type = "passive"; };
-				cpul_hot: cpu-hot { temperature = <90000>; hysteresis = <2000>; type = "passive"; };
-				cpul_crit: cpu-crit { temperature = <110000>; hysteresis = <0>; type = "critical"; };
+				/*
+				 * Active fan ramp. The fan spins from 60 C and steps up
+				 * with temperature; the pwm for each state is set in the
+				 * &pwm_fan cooling-levels override below (state 1 = 50%).
+				 * (A passive/IPA DVFS trip returns once the CPU-CCU
+				 * cpufreq driver is back in the build.)
+				 */
+				cpul_fan1: fan-on   { temperature = <60000>;  hysteresis = <5000>; type = "active"; };
+				cpul_fan2: fan-mid  { temperature = <72000>;  hysteresis = <5000>; type = "active"; };
+				cpul_fan3: fan-full { temperature = <85000>;  hysteresis = <5000>; type = "active"; };
+				cpul_crit: cpu-crit { temperature = <110000>; hysteresis = <0>;    type = "critical"; };
 			};
 
 			cooling-maps {
-				map-fan {
-					trip = <&cpul_hot>;
-					cooling-device = <&pwm_fan THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
-				};
+				map-fan1 { trip = <&cpul_fan1>; cooling-device = <&pwm_fan 1 1>; };	/* ~50% */
+				map-fan2 { trip = <&cpul_fan2>; cooling-device = <&pwm_fan 3 3>; };	/* ~75% */
+				map-fan3 { trip = <&cpul_fan3>; cooling-device = <&pwm_fan 5 5>; };	/* 100% */
 			};
 		};
 
 		cpub_thermal: cpub-thermal {
-			polling-delay-passive = <100>;
+			polling-delay-passive = <250>;
 			polling-delay = <1000>;
 			thermal-sensors = <&ths 0>;	/* big cluster (the hot one) */
 
 			trips {
-				cpub_warn: cpu-warn { temperature = <70000>; hysteresis = <2000>; type = "passive"; };
-				cpub_hot: cpu-hot { temperature = <90000>; hysteresis = <2000>; type = "passive"; };
-				cpub_crit: cpu-crit { temperature = <110000>; hysteresis = <0>; type = "critical"; };
+				cpub_fan1: fan-on   { temperature = <60000>;  hysteresis = <5000>; type = "active"; };
+				cpub_fan2: fan-mid  { temperature = <72000>;  hysteresis = <5000>; type = "active"; };
+				cpub_fan3: fan-full { temperature = <85000>;  hysteresis = <5000>; type = "active"; };
+				cpub_crit: cpu-crit { temperature = <110000>; hysteresis = <0>;    type = "critical"; };
 			};
 
 			cooling-maps {
-				map-fan {
-					trip = <&cpub_hot>;
-					cooling-device = <&pwm_fan THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
-				};
+				map-fan1 { trip = <&cpub_fan1>; cooling-device = <&pwm_fan 1 1>; };	/* ~50% */
+				map-fan2 { trip = <&cpub_fan2>; cooling-device = <&pwm_fan 3 3>; };	/* ~75% */
+				map-fan3 { trip = <&cpub_fan3>; cooling-device = <&pwm_fan 5 5>; };	/* 100% */
 			};
 		};
 
@@ -116,4 +123,22 @@
 			thermal-sensors = <&ths_ddr 0>;
 		};
 	};
+};
+
+/*
+ * Fan duty curve. Each cooling-levels entry maps a cooling STATE (index) to a
+ * pwm value (0-255); the thermal-zone cooling-maps above pick the state per trip.
+ *
+ * The stock board curve started state 1 at pwm 1, which is far too weak to spin
+ * the fan (seen on HW: emulated 95 C -> state 1 -> pwm 1 -> fan did not move).
+ * Start the first ACTIVE state at ~50% and ramp to 100%:
+ *   state 0 = 0 (off), 1 = 128 (~50%), 2 = 160 (~63%), 3 = 192 (~75%),
+ *   4 = 224 (~88%), 5 = 255 (100%).
+ * 50% is a safe guaranteed-spin start; once the device is in hand, tune the
+ * first step DOWN toward the fan's real startup duty (often ~30-40% = pwm 96-110)
+ * to trade a little airflow for quiet, and confirm each step spins via
+ * `echo <mC> > /sys/class/thermal/thermal_zoneN/emul_temp`.
+ */
+&pwm_fan {
+	cooling-levels = <0 128 160 192 224 255>;
 };
