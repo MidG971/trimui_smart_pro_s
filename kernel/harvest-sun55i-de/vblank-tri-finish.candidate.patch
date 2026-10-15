@@ -1,0 +1,66 @@
+From: Midgy BALON <midgy971@gmail.com>
+Subject: [PATCH] drm/sun4i: a523 8080 CPU-IF - complete vblank/flip from TRI_FINISH
+
+===========================================================================
+CANDIDATE - drafted + BUILD-VERIFIED 2026-10-15. HW test still pending.
+Apply AFTER kernel/harvest-sun55i-de/drm-display-provisional.patch, against the
+post-solve sun4i_tcon.c:
+
+    patch -p1 --forward --fuzz=3 < kernel/harvest-sun55i-de/vblank-tri-finish.candidate.patch
+
+then rebuild sun4i-tcon.ko (vermagic 7.3.0-rc7-dirty), deploy, and test per
+docs/DISPLAY-VBLANK-ANALYSIS.md.
+
+Verified: applies clean (offset located) AND builds in a full
+`make Image modules dtbs` on v7.3-rc7 (EXIT 0, complete Module.symvers, no
+modpost errors; sun4i-tcon.ko carries the fix). NOT yet HW-tested - does it
+actually clear the flip_done timeouts and let fbcon/apps animate on the panel.
+Now part of assemble-7.3.sh (step 1b).
+===========================================================================
+
+In 8080 MIPI-DSI CPU-interface mode the A523 TCON reports a completed frame via
+TCON0_TRI_FINISH, and VBLANK_INT never fires. sun4i_tcon_handler() only completes
+DRM's vblank/page-flip on VBLANK_INT, so drm_crtc_handle_vblank() is never called:
+every atomic commit's flip_done then times out (10 s), the panel holds a single
+frame (greyish, CRT-lines), and boot stalls while fbcon/agetty commits block.
+
+The TRI_FINISH branch already runs the per-frame CPU-IF re-arm (gated on
+a523_stock_trigger). Drive the vblank/flip completion from it too - signalling
+the just-finished frame before arming the next push - so flip_done completes once
+per pushed frame and DRM can actually drive updates.
+
+(vblank is already registered/on for this CRTC: sun4i_crtc's atomic enable/disable
+call drm_crtc_vblank_on()/_off(), and enable_vblank arms TRI_FINISH_ENABLE.)
+
+Not-yet-verified (see the doc): no double-count if VBLANK_INT ever also fires;
+per-frame handle_vblank keeps DRM's vblank timestamp/seqno sane; behaviour under
+retrig_period_ms slow-refresh (flip_done then completes at that slower rate).
+
+Assisted-by: Claude (Opus 4.8)
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+---
+ drivers/gpu/drm/sun4i/sun4i_tcon.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/gpu/drm/sun4i/sun4i_tcon.c b/drivers/gpu/drm/sun4i/sun4i_tcon.c
+--- a/drivers/gpu/drm/sun4i/sun4i_tcon.c
++++ b/drivers/gpu/drm/sun4i/sun4i_tcon.c
+@@ -1268,6 +1268,16 @@ static irqreturn_t sun4i_tcon_handler(int irq, void *private)
+ 	 */
+ 	if (a523_stock_trigger && !retrig_disable &&
+ 	    (status & SUN4I_TCON_GINT0_TCON0_TRI_FINISH_INT)) {
++		/*
++		 * 8080 CPU-IF reports a finished frame via TRI_FINISH, not
++		 * VBLANK_INT (which never fires here). Treat it as the per-frame
++		 * vblank/flip-complete, or every DRM atomic commit's flip_done
++		 * times out (10 s) and the panel holds a single frame. Signal the
++		 * finished frame before arming the next CPU-IF push.
++		 */
++		drm_crtc_handle_vblank(&scrtc->crtc);
++		sun4i_tcon_finish_page_flip(drm, scrtc);
++
+ 		WRITE_ONCE(tcon->retrig_last_finish, ktime_get());
+ 		/* slow-refresh mode paces from the hrtimer instead (retrig_period_ms) */
+ 		if (!retrig_period_ms)
+--
+2.43.0

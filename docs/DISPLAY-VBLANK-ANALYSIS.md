@@ -1,8 +1,11 @@
 <!-- SPDX-License-Identifier: (GPL-2.0-only OR MIT) -->
 # A523 display: the `vblank`/`flip_done` timeout (held-frame) — analysis + candidate fix
 
-**Status:** offline source analysis (2026-10-14), no build/HW this round. Candidate fix below is
-**unbuilt/untested** — stage for the next session with the compile server + device.
+**Status:** root-cause analysis (2026-10-14) + the candidate fix **build-verified** (2026-10-15): it applies
+clean and compiles/links in a full `make Image modules dtbs` on v7.3-rc7 (EXIT 0, complete Module.symvers,
+no modpost errors). Ready-to-apply patch: `kernel/harvest-sun55i-de/vblank-tri-finish.candidate.patch`
+(also wired into `assemble-7.3.sh` step 1b). **HW test still pending** — does it clear the flip_done timeouts
+and let fbcon/apps animate on the panel.
 
 ## Symptom (on 7.3-rc7 HW, and consistent with the 7.2 "held last frame" note)
 
