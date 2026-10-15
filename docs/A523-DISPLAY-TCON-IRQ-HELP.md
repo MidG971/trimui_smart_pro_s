@@ -4,12 +4,14 @@
 **Date:** 2026-10-15 · **Kernel:** mainline **v7.3-rc7** · **SoC:** Allwinner **A523** (sun55iw3) ·
 **Repo:** https://github.com/MidG971/trimui_smart_pro_s
 
-> **TL;DR** — The DE33 display pipeline binds and the panel lights, but there is **no per-frame
-> completion**: every DRM atomic commit's `flip_done`/`vblank` times out (10 s), and the TCON's
-> frame-done IRQ (`5502000.lcd-controller`, GIC 124) shows **count 0 — it never fires**. The panel is
-> an 8080 / TCON **CPU-interface (command-ish)** DSI, so frame-complete is `TCON0_TRI_FINISH`, not the
-> free-scan `VBLANK_INT`. We have a candidate fix (drive `drm_crtc_handle_vblank()` from `TRI_FINISH`)
-> but it is inert because the IRQ never arrives. **We'd love eyes on *why the TCON IRQ never fires*.**
+> **TL;DR** — The DE33 pipeline binds and `fb0` is created, but register-level probing shows the
+> **TCON-LCD1 is clocked and out-of-reset yet never enabled/configured** (`CTL=0`, `curline=0` → not
+> scanning), so there is no scanout, the frame-done IRQ (`5502000.lcd-controller`, GIC 124) stays at
+> **count 0**, every DRM `flip_done`/`vblank` times out, and the panel shows only a stale/garbage DDIC
+> patch. Clock-gating, reset, and IRQ-index are **ruled out** (see §3b). The panel is an 8080 / TCON
+> **CPU-interface** DSI (frame-complete = `TCON0_TRI_FINISH`, not `VBLANK_INT`). **We'd love eyes on
+> *why sun4i_tcon's CRTC enable never configures/enables the TCON* on this DE33 setup.** (A `TRI_FINISH
+> → drm_crtc_handle_vblank` patch is ready but inert until the TCON actually runs.)
 
 ---
 
@@ -79,7 +81,33 @@ if (a523_stock_trigger && (status & TCON0_TRI_FINISH_INT)) {   /* the event we S
 }
 ```
 
-## 4. Leading hypothesis
+## 3b. Register-level findings (2026-10-15, via an `ioremap` debug module — `/dev/mem` is unreliable here even with `STRICT_DEVMEM=n`)
+
+Read directly from the clocked blocks (kernel `ioremap`+`readl`, corroborated by the driver's own regmap):
+
+```
+CCU resets (1 = out-of-reset):  DE=1  DISPLAY0_TOP=1  MIPI_DSI1=1  TCON_LCD1=1   (LVDS1=0, unused/DSI board)
+CCU gates:  tcon-lcd1 bus=1, tcon-lcd1 mod @62 MHz (clk_summary)
+tcon1 @0x5502000:  CTL(0x40)=0  GINT0(0x04)=0  GINT1(0x08)=0  curline(0xfc)=0
+tcon-top @0x5500000 = 0 ;  dsi1 @0x5508000 = 0
+```
+
+So the TCON (and tcon-top/dsi1) are **clocked and out of reset, but their registers are all zero** — the
+**TCON core is never enabled/configured** (`CTL` bit31 TCON_ENABLE clear, `curline`=0 → not scanning). This
+rules out clock-gating, reset, and IRQ-index as causes. tcon0 @0x5501000 is clock-disabled, so scanout isn't
+secretly on it either. **The vblank/flip_done timeout is a downstream symptom: a disabled TCON can't scan or
+interrupt.** The panel's "white patch" is a stale/garbage DDIC state, never a driven frame.
+
+## 4. Leading hypothesis (revised)
+
+The DE/mixer `mode_set` runs and `fb0` is created, the TCON clock+reset are brought up, but the
+**sun4i_tcon CRTC enable never writes the TCON `CTL`/timing** (it stays 0) — so the 8080 CPU-IF scanout is
+never actually started on tcon1. (Earlier `enable_vblank` at t=9.5s also saw `CTL=0`, consistent: the TCON is
+simply never enabled, not just "vblank armed too early".) Why the atomic_enable / a523_stock_trigger config
+path doesn't configure the TCON on 7.3 is the open question — possibly the CRTC↔TCON/encoder binding (the log
+prints "Cannot find any crtc or sizes" at t=8.6s) or a DE33 enable-ordering gap.
+
+## 4b. Original leading hypothesis (superseded by §3b/§4)
 
 `enable_vblank()` runs **at t≈9.5 s, before the TCON's `atomic_enable` has configured/clocked it**
 (`TCON0_CTL=0`), so the `GINT0 |= TRI_FINISH_ENABLE` write is lost. DRM's vblank refcount then stays
