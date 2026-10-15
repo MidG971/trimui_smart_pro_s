@@ -109,10 +109,16 @@ pushes, so the DDIC is no longer starved/drifting). Two of its leads remain live
   init sends `0x35` SET_TEAR_ON, so the panel emits a per-frame TE pulse, but nothing consumes it (no
   `te-gpios` in DT, no TE IRQ, no wait-for-TE). TE is the panel's own "frame done / ready for next" strobe —
   a cleaner vblank/flip source than the host-side TRI_FINISH, and the canonical way to push tearing-free
-  frames (wait TE → arm CPU-IF push → TRI_FINISH completes it). **Next-session check:** is the panel TE pin
-  physically routed to an SoC GPIO (vendor DTS / schematic)? If yes, drive `drm_crtc_handle_vblank()` from a
-  TE IRQ and gate the CPU-IF re-arm on TE — likely fixes both the flip_done timeout *and* the residual
-  CRT-lines/tearing. If TE is not routed, the TRI_FINISH fix above stands.
+  frames (wait TE → arm CPU-IF push → TRI_FINISH completes it).
+  **TE-GPIO checked (2026-10-15): RULED OUT.** The vendor DTS (`vendor/trimui_smart_pro_source.dts`) routes
+  DSI1 (our panel) as exactly the 10 lanes `PD10-PD19` (`dsi1_4lane` pinctrl) with **no extra pin**; there
+  are no `te-gpios`, no `lcd_dsi_te`, and no `lcd_*` config (the `lcd0` node is a stub — the vendor panel
+  config is in the kernel/FEX, not the DT). The whole PD display bank is accounted for (PD0-9 dsi0 unused,
+  PD10-19 dsi1, PD20-21 parallel-RGB only, PD22 reset, PD23 backlight PWM). So **there is no TE GPIO to take
+  an IRQ from** → the TRI_FINISH → `drm_crtc_handle_vblank` fix above is THE path. (TE may still be delivered
+  *in-band over the DSI link*; if the residual CRT-lines/tearing need it later, that's a TCON/sun6i-dsi
+  CPU-IF TE-source *register* question — `lcd_dsi_te` in the BSP — not a GPIO, and separate from fixing
+  flip_done.)
 - **Porches / AC frame-inversion (CRT-lines).** The panel is `MIPI_DSI_MODE_VIDEO`; the residual greyish
   "CRT lines" may be the LCD not completing AC frame/line inversion within an under-sized vblank. Current
   timing: `htotal 776` (hfp 32 / hsync 6 / hbp 18), `vtotal 1314` (vfp 16 / vsync 2 / vbp 34). Worth trying
