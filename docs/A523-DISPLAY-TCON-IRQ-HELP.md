@@ -107,7 +107,37 @@ simply never enabled, not just "vblank armed too early".) Why the atomic_enable 
 path doesn't configure the TCON on 7.3 is the open question — possibly the CRTC↔TCON/encoder binding (the log
 prints "Cannot find any crtc or sizes" at t=8.6s) or a DE33 enable-ordering gap.
 
-## 4b. Original leading hypothesis (superseded by §3b/§4)
+## 3c. ROOT CAUSE confirmed (2026-10-15, via `journalctl -b` + source trace)
+
+Boot log: the TCON binds and the mixer `mode_set 720x1280` runs, but there is **no `stock-trigger`
+diagnostic at all** — so `sun4i_tcon0_mode_set_a523_trigger()` (which writes the TCON `CTL`/8080 config) is
+**never called**. It is gated on `tcon->pixel_clk`, and that is **NULL**:
+
+```c
+tcon->pixel_clk = devm_clk_get_optional(dev, "pixel");   /* DT clock-name "pixel" */
+...
+if (tcon->pixel_clk && a523_stock_trigger) { ...a523_trigger (writes CTL)... }  /* skipped: pixel_clk NULL */
+```
+
+The tcon-lcd1 DT node has `clock-names = "ahb", "tcon-ch0"` — **no "pixel" clock** (true on both our 7.3
+reconcile DT *and* the HW-proven 7.2 DTB). So `devm_clk_get_optional(dev, "pixel")` returns NULL → the whole
+A523 CPU-IF config path is skipped → the TCON is never enabled (`CTL=0`) → no scanout → no `TRI_FINISH` IRQ
+→ `flip_done` times out → the panel shows only the "full-white" gate-workaround/garbage.
+
+This is reinforced by the solve's own documented gap: `sun4i_tcon_route_displl()`'s DT-graph id lookup
+"does not resolve to 0/1", so `set_displl()` (the per-LCD DISPLL pixel-clock routing) is never reached — the
+code works around it by force-opening both DSI datapath gates at tcon-top bind ("HW-proven full-white …
+clean per-LCD routing via set_displl is a follow-up once the graph lookup is fixed"). So the full A523 8080
+bring-up (DISPLL pixel clock + `CTL` config) has **never actually run** on this path.
+
+**Fix direction (next focused session):** (1) provide the TCON's "pixel" clock in the DT (clock-names +=
+"pixel" → the DISPLL-routed pixel clock) so `tcon->pixel_clk` is non-NULL and the a523 config path runs; and
+(2) fix `sun4i_tcon_of_get_id_from_port()` / the tcon-top↔tcon1 OF-graph so `route_displl()` resolves the id
+0/1 and `set_displl()` routes the DISPLL pixel clock per-LCD instead of the force-open-gates workaround. The
+panel `drm_display_mode` must also equal the a523_trigger guard (clock 48000, htotal 844, vtotal 1309) — done
+2026-10-15. The `TRI_FINISH → drm_crtc_handle_vblank` patch then completes the per-frame flip.
+
+## 4b. Original leading hypothesis (superseded by §3b/§3c/§4)
 
 `enable_vblank()` runs **at t≈9.5 s, before the TCON's `atomic_enable` has configured/clocked it**
 (`TCON0_CTL=0`), so the `GINT0 |= TRI_FINISH_ENABLE` write is lost. DRM's vblank refcount then stays
