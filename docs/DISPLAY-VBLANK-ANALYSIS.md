@@ -99,7 +99,32 @@ The 7.2 bring-up reached "steady image" via the same re-trigger loop and simply 
 (console was quiet, apps that worked didn't block on vblank). 7.3's fbcon/agetty/plymouth do blocking
 atomic commits at boot, which surfaces the missing flip completion as the 10 s stalls.
 
+## Related leads (from `docs/pistes_again.md`, reconciled 2026-10-14)
+
+That doc frames the (now-cured) fractale/heat as a DDIC DC-bias / charge-pump problem. With the panel cool
+and showing a real image, those root causes are addressed (the memory-region fix restored valid frame
+pushes, so the DDIC is no longer starved/drifting). Two of its leads remain live and bear on the work here:
+
+- **TE (tearing-effect) is enabled but unused — strong alternative/again for the vblank source.** The panel
+  init sends `0x35` SET_TEAR_ON, so the panel emits a per-frame TE pulse, but nothing consumes it (no
+  `te-gpios` in DT, no TE IRQ, no wait-for-TE). TE is the panel's own "frame done / ready for next" strobe —
+  a cleaner vblank/flip source than the host-side TRI_FINISH, and the canonical way to push tearing-free
+  frames (wait TE → arm CPU-IF push → TRI_FINISH completes it). **Next-session check:** is the panel TE pin
+  physically routed to an SoC GPIO (vendor DTS / schematic)? If yes, drive `drm_crtc_handle_vblank()` from a
+  TE IRQ and gate the CPU-IF re-arm on TE — likely fixes both the flip_done timeout *and* the residual
+  CRT-lines/tearing. If TE is not routed, the TRI_FINISH fix above stands.
+- **Porches / AC frame-inversion (CRT-lines).** The panel is `MIPI_DSI_MODE_VIDEO`; the residual greyish
+  "CRT lines" may be the LCD not completing AC frame/line inversion within an under-sized vblank. Current
+  timing: `htotal 776` (hfp 32 / hsync 6 / hbp 18), `vtotal 1314` (vfp 16 / vsync 2 / vbp 34). Worth trying
+  a larger vblank (bump vbp/vfp) on HW once flips land, and cross-checking the stock BSP `disp` porch/VCOM
+  and column/frame-inversion registers. (Diagnostic idea from the doc: U-Boot inits the DSI PHY, hand off to
+  mainline via `simple-framebuffer` to confirm HW stability independent of the DRM driver.)
+
+NB: the panel's DSI mode is **non-burst** in the solve (`MIPI_DSI_MODE_VIDEO | LPM`, provisional patch) —
+the proven setting. The standalone `kernel/drivers/panel-trimui-smart-pro-s.c` copy had a stale
+`..._VIDEO_BURST`; synced to non-burst 2026-10-14.
+
 ## Related
 - `kernel/harvest-sun55i-de/drm-display-provisional.patch` (the solve; `sun4i_tcon_handler`,
   `sun4i_tcon_retrig_timer`, `sun4i_tcon0_cpu_if_arm`)
-- `docs/DISPLAY-PORT-STATUS.md`, `docs/DE33-ADOPTION-NOTES.md`
+- `docs/pistes_again.md` (DDIC-level symptom analysis), `docs/DISPLAY-PORT-STATUS.md`, `docs/DE33-ADOPTION-NOTES.md`

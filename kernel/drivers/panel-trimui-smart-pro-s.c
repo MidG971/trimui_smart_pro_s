@@ -265,8 +265,12 @@ static int trimui_panel_probe(struct mipi_dsi_device *dsi)
 
 	dsi->lanes = 4;
 	dsi->format = MIPI_DSI_FMT_RGB888;
-	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
-			  MIPI_DSI_MODE_LPM;
+	/*
+	 * Non-burst. Burst mode was the root cause of the DSI/DDIC instability
+	 * (fractale + heat) during bring-up; the HW-proven solve runs the panel
+	 * in plain video mode (see kernel/harvest-sun55i-de/ + docs/pistes_again.md).
+	 */
+	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_LPM;
 
 	p->supplies[0].supply = "power0";
 	p->supplies[1].supply = "power1";
