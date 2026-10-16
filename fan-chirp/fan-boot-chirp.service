@@ -1,0 +1,14 @@
+[Unit]
+Description=Fan power-on chirp: spin the fan ~3s at boot so you can tell the device is on
+# Cooling devices are created during kernel init, so they always exist by the
+# time any systemd service runs. Keep this simple and late (multi-user); the
+# kick is short and does not gate anything else.
+After=basic.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fan-boot-chirp.sh
+TimeoutStartSec=20
+
+[Install]
+WantedBy=multi-user.target

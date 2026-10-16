@@ -131,14 +131,19 @@
  *
  * The stock board curve started state 1 at pwm 1, which is far too weak to spin
  * the fan (seen on HW: emulated 95 C -> state 1 -> pwm 1 -> fan did not move).
- * Start the first ACTIVE state at ~50% and ramp to 100%:
- *   state 0 = 0 (off), 1 = 128 (~50%), 2 = 160 (~63%), 3 = 192 (~75%),
+ *
+ * state 0 is a non-zero ALWAYS-ON FLOOR (~37%) rather than off: the panel can't
+ * yet be used as a power indicator, so a quietly-spinning fan is how you tell the
+ * device is on when the SoC is cool. It then ramps to 100%:
+ *   state 0 = 96 (~37% floor), 1 = 128 (~50%), 2 = 160 (~63%), 3 = 192 (~75%),
  *   4 = 224 (~88%), 5 = 255 (100%).
- * 50% is a safe guaranteed-spin start; once the device is in hand, tune the
- * first step DOWN toward the fan's real startup duty (often ~30-40% = pwm 96-110)
- * to trade a little airflow for quiet, and confirm each step spins via
- * `echo <mC> > /sys/class/thermal/thermal_zoneN/emul_temp`.
+ * 96 is at/under this fan's stiction threshold from a dead stop, so a boot
+ * one-shot (fan-boot-chirp.service) kicks the fan to 100% for ~3s at boot to give
+ * an unmistakable power-on signal. HW note (2026-10-16): on our unit 37% did NOT
+ * reliably sustain spin once the kick released, so the boot chirp is the reliable
+ * "it's on" signal; tune this floor UP toward the measured quiet-sustain duty, and
+ * confirm each step spins via `echo <mC> > .../thermal_zoneN/emul_temp`.
  */
 &pwm_fan {
-	cooling-levels = <0 128 160 192 224 255>;
+	cooling-levels = <96 128 160 192 224 255>;
 };
