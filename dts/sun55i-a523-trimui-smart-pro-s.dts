@@ -324,13 +324,26 @@
 				regulator-name = "vdd-dram";
 			};
 
+			/*
+			 * dcdc4 = vdd-io, the 3.3 V rail that powers the PIO bank-K
+			 * I/O pads — the sideboard +5V master enable (PK15), the WS2812
+			 * LED-array enable (PK18) and the gamepad-pad enables (PK12/PK16)
+			 * all live on bank K. It MUST be kept on: the 2026-07-26 vendor
+			 * capture read DCDC4 as 1.0 V/disabled and an earlier note called
+			 * "vdd-io 3.3 V" a wrong guess and left this off — but that is the
+			 * regression. HW-PROVEN 2026-10-16: with dcdc4 off the bank-K pads
+			 * read "out hi" yet cannot drive (no I/O supply), so PK15 never
+			 * enables the 5V load switch and the whole sideboard (fan, LED ring,
+			 * gamepad MCUs, speaker) stays dark; the pre-rebase 7.2 kernel ran
+			 * this exact rail at vdd-io/3.3 V/always-on with everything working.
+			 * The DT doesn't model vcc-pk-supply (-> dummy), so always-on here
+			 * is what keeps the bank-K pads powered.
+			 */
 			reg_dcdc4: dcdc4 {
-				/*
-				 * Live capture 2026-07-26: DCDC4 = 1.0 V and
-				 * DISABLED on the vendor kernel. The earlier
-				 * "vdd-io 3.3 V always-on" was a wrong guess — it is
-				 * an unused rail here. Leave unconfigured (off).
-				 */
+				regulator-always-on;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-name = "vdd-io";
 			};
 
 			reg_aldo1: aldo1 {
