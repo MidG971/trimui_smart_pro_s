@@ -325,19 +325,23 @@
 			};
 
 			/*
-			 * dcdc4 = vdd-io, the 3.3 V rail that powers the PIO bank-K
-			 * I/O pads — the sideboard +5V master enable (PK15), the WS2812
-			 * LED-array enable (PK18) and the gamepad-pad enables (PK12/PK16)
-			 * all live on bank K. It MUST be kept on: the 2026-07-26 vendor
-			 * capture read DCDC4 as 1.0 V/disabled and an earlier note called
-			 * "vdd-io 3.3 V" a wrong guess and left this off — but that is the
-			 * regression. HW-PROVEN 2026-10-16: with dcdc4 off the bank-K pads
-			 * read "out hi" yet cannot drive (no I/O supply), so PK15 never
-			 * enables the 5V load switch and the whole sideboard (fan, LED ring,
-			 * gamepad MCUs, speaker) stays dark; the pre-rebase 7.2 kernel ran
-			 * this exact rail at vdd-io/3.3 V/always-on with everything working.
-			 * The DT doesn't model vcc-pk-supply (-> dummy), so always-on here
-			 * is what keeps the bank-K pads powered.
+			 * dcdc4 = vdd-io, the 3.3 V rail that supplies the PIO bank-K I/O
+			 * pads. Bank K carries the sideboard +5V master enable (PK15), the
+			 * WS2812 LED-array enable (PK18) and the gamepad-pad enables
+			 * (PK12/PK16), so this rail must stay up for those pads to drive.
+			 * An earlier revision read the 2026-07-26 vendor capture as
+			 * "DCDC4 = 1.0 V, disabled", called the "vdd-io 3.3 V" reading a
+			 * wrong guess, and left the node unconfigured — with no constraints
+			 * and no consumer the regulator core then prunes it as unused at
+			 * late boot. The pre-rebase 7.2 DT ran this rail as
+			 * vdd-io / 3.3 V / always-on, so restore that. The DT does not model
+			 * vcc-pk-supply (it resolves to a dummy), hence always-on here is
+			 * what keeps the bank-K pads supplied.
+			 *
+			 * NOTE: this rail is necessary but is NOT what was killing the
+			 * sideboard. That was traced (2026-10-18) to the DE/DSI display
+			 * pipeline browning out the shared +5V; see docs/ and the display
+			 * work. Do not read this hunk as a sideboard fix.
 			 */
 			reg_dcdc4: dcdc4 {
 				regulator-always-on;
@@ -446,12 +450,17 @@
 	 * and 0x36 (axp1530) driver-bound; 0x41 is ABSENT. The board has three
 	 * CPU-buck footprints (tcs@41 / sy@60 / axp1530@36) and only axp1530 is
 	 * populated — so our earlier tcs4838 (patch 0014) was the wrong chip.
-	 * axp1530 is already mainline (x-powers,axp1530 in axp20x). dcdc1 = the
+	 * The AXP1530 is the AXP313A/AXP323 family; the mainline axp20x driver
+	 * matches it as "x-powers,axp323" (NOT "x-powers,axp1530" — that string has
+	 * no driver match, so the chip silently never binds and its regulators
+	 * vanish, incl. the big-cluster supply vdd-cpu-big). HW-verified 2026-10-18:
+	 * 7.2-era DT used x-powers,axp323 and 0x36 bound; the 7.3 reconstruction
+	 * switched it to x-powers,axp1530 and 0x36 stopped binding. dcdc1 = the
 	 * big-core rail; dcdc2/dcdc3 are live vendor rails kept always-on. Voltages
 	 * capped by the big-cluster OPP ladder (dts/staging/trimui-cpu-opp.dtsi).
 	 */
 	axp1530: pmic@36 {
-		compatible = "x-powers,axp1530";
+		compatible = "x-powers,axp323";
 		reg = <0x36>;
 
 		regulators {
@@ -603,12 +612,17 @@
 
 &usbphy {
 	/*
-	 * Source VBUS for host mode from the always-on AXP2202 5V boost (the board
-	 * routes it to the OTG VBUS; mainline has no AXP717 drivevbus regulator).
-	 * Without a real supply the phy logs "dummy supplies not allowed for
-	 * exclusive requests (id=vbus)" and host VBUS is marginal.
+	 * Do NOT source the OTG (usb0) VBUS from reg_boost. reg_boost is the AXP2202
+	 * 5V boost whose output also feeds the sideboard +5V rail (fan, LED ring,
+	 * gamepad MCUs, speaker amp). Making the musb/OTG PHY a consumer of it lets the
+	 * PHY cut the boost's VBUS drive when the port is not in host mode, which
+	 * collapses the whole sideboard. HW-proven 2026-10-18: with this line the boost
+	 * enable bit stays set but the sideboard goes dark ~1 min after boot; the
+	 * pre-rebase 7.2 DT (no such line) keeps the sideboard powered. The OTG/Type-C
+	 * host path is blocked anyway (unpowered twi5 PD chips, see
+	 * docs/USB-HOST-PD-FIX-RECIPE.md); when it is revived, give usb0 VBUS its own
+	 * switch (the PD8 GPIO fixed-regulator), never reg_boost.
 	 */
-	usb0_vbus-supply = <&reg_boost>;
 	/* Host port 1 ("USB host" USB-C) VBUS switch on PE6 (HW-verified). */
 	usb1_vbus-supply = <&reg_usb1_vbus>;
 	status = "okay";
