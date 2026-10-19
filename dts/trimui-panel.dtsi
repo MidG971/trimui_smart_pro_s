@@ -137,8 +137,16 @@
 		compatible = "trimui,smart-pro-s-panel";
 		reg = <0>;
 
-		/* Panel reset PD22; 120 ms settle handled by the driver. */
-		reset-gpios = <&pio 3 22 GPIO_ACTIVE_HIGH>;	/* PD22 */
+		/*
+		 * Panel reset PD22; 120 ms settle handled by the driver.
+		 * RESX is active low: the driver asserts, waits 20 ms, releases
+		 * and settles before the first DCS. Declaring this ACTIVE_HIGH
+		 * inverts that pulse and leaves the DDIC held in reset for the
+		 * whole init - it then ignores every command silently (DCS
+		 * writes are not acked), never starts its charge pump, and the
+		 * panel shows backlight only no matter what is sent to it.
+		 */
+		reset-gpios = <&pio 3 22 GPIO_ACTIVE_LOW>;	/* PD22 */
 
 		/*
 		 * Power rails (vendor DTB): power0 = AXP2202 cldo4,

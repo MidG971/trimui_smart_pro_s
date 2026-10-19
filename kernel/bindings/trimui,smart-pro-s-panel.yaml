@@ -55,7 +55,7 @@ examples:
         panel@0 {
             compatible = "trimui,smart-pro-s-panel";
             reg = <0>;
-            reset-gpios = <&pio 3 22 GPIO_ACTIVE_HIGH>;
+            reset-gpios = <&pio 3 22 GPIO_ACTIVE_LOW>;
             power0-supply = <&reg_cldo4>;
             power1-supply = <&reg_cldo1>;
             backlight = <&backlight>;
