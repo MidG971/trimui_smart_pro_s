@@ -1,0 +1,62 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Midgy BALON <midgy971@gmail.com>
+Date: Sun, 19 Oct 2026 10:55:00 +0200
+Subject: [PATCH] pmdomain: sunxi: pck600: keep the A523 VI/VO0/VO1 domains on
+
+On the A523 nothing in the device tree claims the VI, VO0 and VO1 power
+domains: the only in-tree consumers of pck-600 are the display engine and
+mixer (PD_DE) and GMAC1 (PD_VO1, disabled on most boards). The TCONs, the
+TCON-TOP and the DSI host carry no power-domains property at all.
+
+That is benign until the provider's sync_state() runs. of_genpd_sync_state()
+clears ->stay_on on every domain of the provider and tries to power each one
+off, so the moment the last deferred consumer probes, every unclaimed domain
+is switched off in one sweep - including the ones the display output blocks
+live in. Their registers then read back as zero and writes to them are lost,
+which looks exactly like a block that is clocked and out of reset but never
+configured.
+
+On the Trimui Smart Pro S this also takes down a 5V rail feeding the side
+board, killing the LED ring, the gamepad MCUs and the fan until the next
+cold boot, because the bootloader is what turns those domains back on.
+
+The vendor device tree marks exactly these three domains "ppu-always-on".
+Do the same here with GENPD_FLAG_ALWAYS_ON, which this driver already
+supports per domain (the A733 table uses it for GPU_CORE).
+
+Tested on a Trimui Smart Pro S (A523) running v7.3-rc7: before the change,
+loading sun8i-mixer dropped VE/GPU/VI/VO0/VO1/NAND/PCIE together and the
+side board went dark permanently; after it, VI/VO0/VO1 stay on and the
+board survives the mixer probe.
+
+Assisted-by: Claude:claude-opus-5 [Claude Code]
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+---
+ drivers/pmdomain/sunxi/sun55i-pck600.c | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/pmdomain/sunxi/sun55i-pck600.c b/drivers/pmdomain/sunxi/sun55i-pck600.c
+--- a/drivers/pmdomain/sunxi/sun55i-pck600.c
++++ b/drivers/pmdomain/sunxi/sun55i-pck600.c
+@@ -202,8 +202,17 @@ err_remove_pds:
+ 	return ret;
+ }
+
++/*
++ * The vendor device tree marks the VI, VO0 and VO1 domains "ppu-always-on".
++ * Powering them down takes parts of the board down with them, and nothing
++ * claims them from DT, so they would otherwise be switched off as unused as
++ * soon as the provider's sync_state() runs.
++ */
+ static const struct sunxi_pck600_pd_desc sun55i_a523_pck600_pds[] = {
+-	{ "VE", }, { "GPU", }, { "VI", }, { "VO0", }, { "VO1", },
++	{ "VE", }, { "GPU", },
++	{ "VI", GENPD_FLAG_ALWAYS_ON },
++	{ "VO0", GENPD_FLAG_ALWAYS_ON },
++	{ "VO1", GENPD_FLAG_ALWAYS_ON },
+ 	{ "DE", }, { "NAND", }, { "PCIE", },
+ };
+
+--
+2.47.3
+
