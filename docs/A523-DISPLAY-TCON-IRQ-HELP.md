@@ -19,7 +19,11 @@
 > image". **That reading did not survive testing.** The DDIC responds to no command in
 > either LP or HS, returns `0x00` for every register including its IDs, and a TCON-generated
 > solid-black pattern does not darken it. The current best interpretation is that **nothing
-> in the DSI stream is being decoded** — see §5f, which is now the live blocker.
+> in the DSI stream was being decoded**.
+> **★ 2026-10-20 — it decodes. The pixel clock was wrong.** The vendor's own panel node
+> gives **62 MHz**, not the 48 MHz we were driving. With the clock corrected the TCON's own
+> patterns invert on the glass and the first colour appears, so the link really is decoding.
+> What remains is that the transfer starves after a few lines. See §5g.
 > See §5 for the register diff and §6 for where fresh eyes would help most.
 
 ---
@@ -320,6 +324,67 @@ first (`844*24/(4*4) - 760 = 506`). 506 is the better-motivated value and changi
 altered the artefacts — but given the conclusion above, that visible change is **not** evidence
 that it fixed anything. Flagged, not claimed.
 
+### 5g. ★ 2026-10-20: the pixel clock was wrong — and the panel decodes
+
+The vendor device tree has a full panel node we had never read in full:
+`trimui_smart_pro_source.dts`, `panel_0@0`, `compatible = "allwinner,panel-dsi"`. Its
+`display-timings` are:
+
+```
+clock-frequency = 0x3b25180 = 62,017,920      (~62 MHz)
+hactive 720  hfront 32  hsync 6  hback 18     -> htotal 776
+vactive 1280 vfront 16  vsync 2  vback 34     -> vtotal 1332   => 60.0 Hz
+```
+
+We were driving **48 MHz / htotal 844 / vtotal 1309 / 43.45 Hz**.
+
+**But only the clock was wrong.** The vendor driver transforms its DT timing into TCON registers
+of 844/1309, and the stock register capture agrees — which is what our original porches already
+produced:
+
+| TCON reg | stock capture | vendor DT | ours (fixed) |
+|---|---|---|---|
+| `0x04c` htotal | `0x034b005b` = 844 | 776 | **`0x034b005b`** |
+| `0x050` vtotal | `0x0a3a000c` = 1309 | 1332 | **`0x0a3a000c`** |
+| `0x054` sync | `0x00030003` = 4/4 | 6/2 | **`0x00030003`** |
+
+So the correct configuration is **the stock porches with the vendor's 62 MHz clock**. 62000 kHz
+is used rather than 62017920 because `pll-video0-3x` is 372 MHz and 372/6 = 62.000 MHz exactly;
+the TCON rejects a mode the clock tree cannot deliver.
+
+With that in place the whole chain lands on the vendor's operating point for the first time:
+`tcon-lcd1 = 62 MHz`, `hs_clk_rate = 372000000`, and the PHY DISPLL programs **N = 124** —
+literally the figure this driver's own comment cites as the BSP reference ("n ~= 124 for 372
+Mbps"). PLL locked, zero `flip_done` timeouts.
+
+**Result on hardware:** with the correct clock *and* `block_space = 506`, the TCON's internal
+patterns **invert on the panel** (white bars on a black source and the reverse) and the first
+**colour** ever appears (faint magenta and yellow lines). The link decodes. This retires §5f's
+conclusion that nothing was being decoded — that was correct on the evidence then available, and
+wrong.
+
+**What remains:** the transfer starves after a few lines at the top. Narrowed so far:
+- `block_space` 84 -> 506 extends the decoded region; **700/1000/1266/1600 all plateau**, so the
+  inter-packet gap is no longer the limit.
+- the per-frame re-trigger is **not** the cause: `retrig_disable=Y`, a 17 ms period and the
+  default were visually identical.
+- `TRI1 = 0x4ff` confirms all 1280 lines are requested; `TRI2 = 0x013b000a`
+  (start_delay 315, trans_start 10) has not been swept yet.
+
+**A bug we shipped, now fixed:** earlier revisions of
+`kernel/harvest-sun55i-de/drm-display-provisional.patch` carried a mode of `62000 / 776 / 1332`
+while the `a523_trigger` guard in the same patch demanded `48000 / 844 / 1309`. Those can never
+both hold, so anyone applying the patch as published had the A523 CPU-IF path rejected at
+`mode_set`. The patch now ships 62000 with the stock porches, and the guard no longer pins the
+clock or the porches at all (it checks only the active area, which is what the register table
+below it actually fixes).
+
+**Open caveat on §5e:** the vendor panel node declares `reset-gpios` with flags `0x00`, i.e.
+`GPIO_ACTIVE_HIGH` — what we had before changing it to `ACTIVE_LOW`. The vendor's
+`allwinner,panel-dsi` driver has its own `reset-num`/`reset-delay-ms` and may apply its own
+polarity convention, so this is not proof the change was wrong, but the rationale in §5e is
+weaker than it reads. To be re-settled.
+
 ## 6. Open questions — where fresh insight would help most
 
 1. **Domain ↔ block mapping.** Which pck-600 domain actually contains TCON-LCD0/1, TCON-TOP and the
@@ -332,11 +397,10 @@ that it fixed anything. Flagged, not claimed.
 3. **The DE33 RCQ list** (no longer blocking — see §5d). Still of interest: is there a
    known-good reference for an A523/H616 DE33 RCQ head array and list? We now run with
    `use_rcq=N` proven to work too, so the two can be compared.
-4. ★ **A DDIC that decodes nothing (§5f)** — powered, reset correctly, every DSI/PHY/TCON
-   register matching the vendor capture, PLL locked, pinmux identical, yet no command is
-   acted on and no pixel content appears. What would you check next? We think the honest
-   answer is a scope on PD10–PD19 during `prepare()`, plus walking the vendor `de_dsi.c`
-   bring-up for a *sequence* step that a register capture cannot reveal.
+4. ★ **A transfer that starves after a few lines (§5g)** — the panel now decodes, but only
+   the first lines of each frame arrive. `block_space` past ~506 makes no difference, the
+   per-frame re-trigger is not the cause, and `block_num` requests all 1280 lines. On a
+   CPU-IF/8080 DSI panel, what else gates how much of a frame actually gets pushed?
 5. ~~**detop `0x018`**~~ — closed, see §5d. Not a framebuffer pointer.
 6. **In-band DSI TE** on `sun6i_mipi_dsi` / A523 — usable for per-frame sync without a GPIO?
    The panel enables TE (`DCS 0x35 SET_TEAR_ON`) but the vendor DTS routes **no TE pin**
