@@ -1,0 +1,67 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Midgy BALON <midgy971@gmail.com>
+Date: Sun, 19 Oct 2026 14:40:00 +0200
+Subject: [PATCH] phy: sun55i-dsi-combo: use the captured analog values
+
+The ANA0/ANA4 trim and the HS_CLK_CONT bit position were derived by decoding
+the BSP dsi_dphy_open() field by field. A live register capture of the vendor
+firmware, taken on the same board while its panel is lit and scanning, gives
+different values for all three:
+
+                  decoded      captured
+  TX_CTL bit      26           28
+  ANA0 (0x4c)     0x00000044   0x00000077
+  ANA4 (0x5c)     0x844635ee   0x84363538
+
+The hardware sides with the capture. With the decoded values the PHY status
+register (0xe0) reads 0x07700000; with the captured ones it reads 0x15c55555,
+which is exactly what the vendor firmware shows while driving the panel. So
+the field decode is wrong somewhere, and the comment claiming otherwise is
+removed.
+
+This does not by itself put an image on the panel - that is still being
+chased elsewhere in the pipeline - but it is independently verifiable: dump
+0x5509000 before and after and compare 0xe0 against the capture in
+docs/STOCK-DSI-REGISTERS.md.
+
+Assisted-by: Claude:claude-opus-5 [Claude Code]
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+---
+diff --git a/drivers/phy/allwinner/phy-sun55i-dsi-combo.c b/drivers/phy/allwinner/phy-sun55i-dsi-combo.c
+index d42d96e..9bc70cf 100644
+--- a/drivers/phy/allwinner/phy-sun55i-dsi-combo.c
++++ b/drivers/phy/allwinner/phy-sun55i-dsi-combo.c
+@@ -39,7 +39,7 @@
+ #define SUN55I_DPHY_GCTL_MODULE_EN		BIT(0)
+ 
+ #define SUN55I_DPHY_TX_CTL		0x04
+-#define SUN55I_DPHY_TX_CTL_HS_CLK_CONT		BIT(26)
++#define SUN55I_DPHY_TX_CTL_HS_CLK_CONT		BIT(28)
+ 
+ #define SUN55I_DPHY_TX_TIME0		0x10
+ #define SUN55I_DPHY_TX_TIME0_HS_TRAIL(n)	(((n) & 0xff) << 24)
+@@ -115,14 +115,16 @@
+  * these from the BSP phy_config[] *table*, whose ANA0/ANA4 layout does NOT match
+  * this SoC (it even mislabelled ANA0 as lptx_setr/setc) -> wrong trim/LDO bias,
+  * which together with the ENLDOR misdefine above left the DISPLL analog dead.
+- *   ana0: reg_plr=4 [7:4], reg_sfb=1 [3:2]                          -> 0x44
+- *   ana4: txpusd=2 txpusc=3 txdnsd=2 txdnsc=3 tmsd=1 tmsc=1 ckdv=3
+- *         vtt_set=3 dmplvd=4 ib=2 en_mipi=1                         -> 0x844635ee
++ * The decode above gave ana0=0x44, ana4=0x844635ee and HS_CLK_CONT at bit 26.
++ * A live register capture of the vendor firmware taken while the panel is lit
++ * disagrees on all three, and the hardware sides with the capture: with these
++ * values the PHY status register (0xe0) reads 0x15c55555, exactly as stock,
++ * where the decoded values left it at 0x07700000.
+  *   combo0: en_cp | en_comboldo | en_mipi                           -> 0x0b (correct)
+  */
+ #define SUN55I_DPHY_CFG_TX_TIME0	0x0406000e
+-#define SUN55I_DPHY_CFG_ANA0		0x00000044
+-#define SUN55I_DPHY_CFG_ANA4		0x844635ee
++#define SUN55I_DPHY_CFG_ANA0		0x00000077
++#define SUN55I_DPHY_CFG_ANA4		0x84363538
+ #define SUN55I_DPHY_CFG_COMBO0		0x0000000b
+ #define SUN55I_DPHY_CFG_COMBO1		0x00000043
+ 
+-- 
+2.47.3
+
