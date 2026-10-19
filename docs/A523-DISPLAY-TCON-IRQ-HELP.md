@@ -13,10 +13,14 @@
 > The TCON is now enabled, scanning, interrupting, and **every `flip_done` completes**.
 > Since then the pipeline has been driven to match the vendor's live register capture
 > **register for register** — TCON, every DSI sync-timing register, the DE33 top block, and the
-> D-PHY including its status register. **★ 2026-10-19, later the same day: the panel now displays** — the last blocker was
-> the panel `reset-gpios` polarity (§5e), not a register at all. What remains is image quality.
-> See §5 for the register diff, §5e for the reset-polarity fix, and §6 for where fresh eyes
-> would help most.
+> D-PHY including its status register. **★ Later on 2026-10-19:** the panel's `reset-gpios` polarity was wrong
+> (§5e) — declared `ACTIVE_HIGH`, it held the DDIC in reset through the whole init. Fixing it
+> changed what the panel shows, and for a while we read that as "it displays, now tune the
+> image". **That reading did not survive testing.** The DDIC responds to no command in
+> either LP or HS, returns `0x00` for every register including its IDs, and a TCON-generated
+> solid-black pattern does not darken it. The current best interpretation is that **nothing
+> in the DSI stream is being decoded** — see §5f, which is now the live blocker.
+> See §5 for the register diff and §6 for where fresh eyes would help most.
 
 ---
 
@@ -262,11 +266,59 @@ BLACK=4, WHITE=5, GRID=7` in the BSP's `de_lcd.h`; the same field as mainline's
 at full backlight in a darkened room, produced **zero** change — which exonerated the DE, mixer,
 RCQ, layers and framebuffer in a single test and forced the search downstream of the TCON.
 
-**Now observed:** white with a visible grid across the whole screen, vertical flicker along the
-right edge, backlight changes taking effect, and the DDIC warming. The remaining questions are
-image quality: the grid (pixel format / stride packing?), the edge flicker (horizontal timing
-margin / porches?), and the DDIC heat, which is the known HS-clock duty issue (mainline holds the
-HS clock at ~100 % duty between frames where stock parks LP-11 at ~15 %).
+**What changed:** before the fix the panel showed backlight only; after it, white with a
+visible fine grid, flicker along the right edge, and the DDIC warming. Backlight control
+works throughout. We initially read this as "the panel displays, now tune the image" — but
+see §5f: the grid is most likely the black matrix visible with the panel driven uniformly
+white, and no pixel content has been demonstrated reaching it. The reset fix is still
+correct and necessary (the DDIC was held in reset through every init it ever received);
+it just is not sufficient.
+
+### 5f. ★ The live blocker: the DDIC decodes nothing
+
+Everything below was measured on hardware with a debug facility added to the panel driver (not
+shipped here — it is four module params: send arbitrary DCS, read one byte back, choose LP/HS, and
+append DCS to the end of the init. `prepare()` re-runs on every blank→unblank, so experiments cost
+seconds rather than a rebuild. Worth re-creating if you are chasing something similar.)
+
+**Commands can only be issued during `prepare()`.** `BASIC_CTL0 (0x010) = 0x00030001` — bit 0
+`INST_ST` is permanently set while video streams, and `sun6i_dsi_inst_wait_for_completion()` polls
+for it to *clear*, so every transfer attempted during video times out (`-110`) and aborts. This is
+expected behaviour, not a fault; disabling the TCON does not free it. The encoder ordering is
+correct (`drm_panel_prepare()` → `DSI_START_HSC` → `drm_panel_enable()` → `DSI_START_HSD`), so the
+init does go out in the free window.
+
+**In that free window, with `accum_err == 0` on every replay:**
+
+| test | result |
+|---|---|
+| `mipi_dsi_dcs_read` of `0x04` RDDID, `0xda/0xdb/0xdc` ID1-3, `0x0a`, `0x0c`, `0x05`, `0x45` | `ret 1`, **value `0x00` for every one** |
+| `0x28` DISPLAY OFF appended to the init (mandatory DCS) | **no visible change** |
+| the entire init re-sent in **HS** instead of LP | **no visible change** |
+| TCON pattern generator set to solid **black** (DE out of the path) | **no visible change** |
+
+ID registers are never all-zero on a live DDIC, and eight different commands returning an identical
+`0x00` means the host reports a byte while nothing drives the bus. Taken with the black-pattern
+result, the conclusion is that the controller is not decoding the link at all — the panel sits at
+its power-on white, and artefacts that move when TCON timing is changed are plausibly electrical,
+not image content.
+
+**Correction to an earlier claim in this document:** §6 previously said `sun6i_mipi_dsi` is
+"TX-only, no LP-RX upstream". That is wrong — `sun6i_dsi_transfer()` handles `MIPI_DSI_DCS_READ`
+for `rx_len == 1`. Reads are implemented; here they complete but return nothing, which is a far
+more useful diagnostic than not having them.
+
+**Ruled out:** PHY `ANA0 (0x4c)` has no bearing on command delivery (swept `0x44/0x77/0x00/0xff/
+0x55/0xcc`, read-back confirmed, no change). DSI lane pinmux is identical to the vendor's
+(`PD10`–`PD19`, function `dsi1`). `INST_JUMP_SEL (0x048) = 0x63f07602` matches the stock capture.
+DSI `0x2f0`/`0x2f4` are read-only runtime fields — writes bounce off, so the stock values captured
+there were snapshots, not configuration.
+
+**On `block_space`:** the A523 trigger hardcodes `(84 << 16)`, i.e. `htotal - hdisplay - 40` in
+pixel units, where upstream's `sun4i_tcon0_mode_set_cpu()` scales htotal into DSI byte-clock units
+first (`844*24/(4*4) - 760 = 506`). 506 is the better-motivated value and changing it visibly
+altered the artefacts — but given the conclusion above, that visible change is **not** evidence
+that it fixed anything. Flagged, not claimed.
 
 ## 6. Open questions — where fresh insight would help most
 
@@ -280,15 +332,16 @@ HS clock at ~100 % duty between frames where stock parks LP-11 at ~15 %).
 3. **The DE33 RCQ list** (no longer blocking — see §5d). Still of interest: is there a
    known-good reference for an A523/H616 DE33 RCQ head array and list? We now run with
    `use_rcq=N` proven to work too, so the two can be compared.
-4. **Image quality now that the panel is driven (§5e)** — a regular grid across the
-   whole screen and vertical flicker confined to the right edge. Pixel-format/stride packing
-   and horizontal timing margin are the obvious suspects; pointers from anyone who has tuned
-   a CPU-IF/8080 DSI panel on sunxi would help.
-5. **detop `0x018`** — is this really the layer framebuffer DMA address on DE33? Ours reads
-   `0x6d5f4000`, above the DE's ~`0x4b000000` reach, while the actual fb is at `0x44100000`.
-6. **In-band DSI TE** on `sun6i_mipi_dsi` / A523 — usable for per-frame sync without a GPIO? The
-   panel enables TE (`DCS 0x35 SET_TEAR_ON`), but the vendor DTS routes **no TE pin** (DSI1 is
-   exactly `PD10–PD19`, no `te-gpios`), so it is not available as a GPIO IRQ.
+4. ★ **A DDIC that decodes nothing (§5f)** — powered, reset correctly, every DSI/PHY/TCON
+   register matching the vendor capture, PLL locked, pinmux identical, yet no command is
+   acted on and no pixel content appears. What would you check next? We think the honest
+   answer is a scope on PD10–PD19 during `prepare()`, plus walking the vendor `de_dsi.c`
+   bring-up for a *sequence* step that a register capture cannot reveal.
+5. ~~**detop `0x018`**~~ — closed, see §5d. Not a framebuffer pointer.
+6. **In-band DSI TE** on `sun6i_mipi_dsi` / A523 — usable for per-frame sync without a GPIO?
+   The panel enables TE (`DCS 0x35 SET_TEAR_ON`) but the vendor DTS routes **no TE pin**
+   (DSI1 is exactly `PD10`–`PD19`, no `te-gpios`), so it is not available as a GPIO IRQ.
+   (Note: this document previously claimed the host is TX-only. It is not — see §5f.)
 7. Anyone on the sister **A133 Smart Pro** (same CPU-IF DSI, per-frame trigger) — how did you wire
    `TRI_FINISH` → vblank cleanly?
 
@@ -343,3 +396,6 @@ Earlier revisions of this document pursued, and can now be closed out:
   was no transient and no latch; `sync_state()` switched the domains off deliberately.
 - *"Display and the side board are mutually exclusive on mainline"* — wrong, and now disproven on
   hardware: both run together.
+- *"The panel displays; what remains is image quality"* — stated here earlier on
+  2026-10-19 after the reset-polarity fix changed what the panel shows. Retracted the same
+  day: see §5f. The change was real, the interpretation was not.
