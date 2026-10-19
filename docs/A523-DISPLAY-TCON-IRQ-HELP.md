@@ -1,17 +1,19 @@
 <!-- SPDX-License-Identifier: (GPL-2.0-only OR MIT) -->
-# A523 (Trimui Smart Pro S) mainline MIPI-DSI — the TCON per-frame IRQ blocker (help / insights welcome)
+# A523 (Trimui Smart Pro S) mainline MIPI-DSI — DE/TCON bring-up (help / insights welcome)
 
-**Date:** 2026-10-15 · **Kernel:** mainline **v7.3-rc7** · **SoC:** Allwinner **A523** (sun55iw3) ·
+**Date:** 2026-10-19 · **Kernel:** mainline **v7.3-rc7** · **SoC:** Allwinner **A523** (sun55iw3) ·
 **Repo:** https://github.com/MidG971/trimui_smart_pro_s
 
-> **TL;DR** — The DE33 pipeline binds and `fb0` is created, but register-level probing shows the
-> **TCON-LCD1 is clocked and out-of-reset yet never enabled/configured** (`CTL=0`, `curline=0` → not
-> scanning), so there is no scanout, the frame-done IRQ (`5502000.lcd-controller`, GIC 124) stays at
-> **count 0**, every DRM `flip_done`/`vblank` times out, and the panel shows only a stale/garbage DDIC
-> patch. Clock-gating, reset, and IRQ-index are **ruled out** (see §3b). The panel is an 8080 / TCON
-> **CPU-interface** DSI (frame-complete = `TCON0_TRI_FINISH`, not `VBLANK_INT`). **We'd love eyes on
-> *why sun4i_tcon's CRTC enable never configures/enables the TCON* on this DE33 setup.** (A `TRI_FINISH
-> → drm_crtc_handle_vblank` patch is ready but inert until the TCON actually runs.)
+> **TL;DR (updated 2026-10-19)** — The blocker this document was originally written about
+> (*"the TCON is clocked and out of reset but every register reads zero, `CTL` writes don't stick,
+> and the frame IRQ never fires"*) is **solved**. It was never a TCON driver bug: **the display
+> stack was powering off the power domain containing its own TCON and DSI.** Nothing in the DT
+> claims `PD_VO0`/`PD_VO1`, so when the mixer probed it released pck-600's deferred `sync_state()`,
+> which switched off every unclaimed domain in one sweep. Fix: `kernel/patches/0039-*.patch`.
+> The TCON is now enabled (`CTL=0x800001d0`), scanning, interrupting, and **every `flip_done`
+> completes**. **The remaining problem is narrower: the panel shows backlight only, no image** —
+> and the prime suspect is that the per-LCD DISPLL pixel-clock routing (`set_displl()`) has still
+> never run. See §5 and §6; that's where fresh eyes would help most.
 
 ---
 
@@ -27,179 +29,238 @@ mixer0 (DE33) → tcon_top[mux 1] → tcon-lcd1 @0x5502000 → dsi1 @0x5508000 (
 - Panel is driven through the **TCON CPU-interface (8080)** path (`pixel_cpu_trigger`), DSI in
   **non-burst** video (`MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_LPM`).
 - `tcon_tv0` is disabled (no HDMI on this board) so `tcon-lcd1` is CRTC-0.
-- Provisional display driver set (BSP-derived "solve", not upstream-clean yet):
-  `kernel/harvest-sun55i-de/drm-display-provisional.patch` + DT fragments.
+- Provisional display driver set (BSP-derived, not upstream-clean yet):
+  `kernel/harvest-sun55i-de/drm-display-provisional.patch` + the DT fragments in `dts/`.
 
-## 2. What works
+---
 
-- Full pipeline **binds**: mixer0, tcon_top, tcon-lcd1, dsi1, combo-phy, panel all probe; `fb0` is
-  created; `sun6i-mipi-dsi … Attached device smart-pro-s-panel`; connector `DSI-1` → `crtc-0` active.
-- RCQ pool fixed: the mixer needs a **low `reserved-memory` CMA** (`alloc-ranges 0x43000000`) because
-  the DE DMA only reaches ~`0x4b000000`; without it the mixer bind fails `-34`.
-- A frame **does reach the panel** via a per-frame CPU-IF trigger loop (an hrtimer re-arms
-  `TCON0_CPU_IF TRI_EN` each cycle). So the panel shows an image — but a *held* one.
+## 2. ★ Root cause of the original blocker: a power domain, switched off by its own consumer
 
-## 3. The blocker — TCON frame-done IRQ never fires → no vblank/flip completion
+### What happens
 
-Every atomic commit stalls the full 10 s `flip_done` timeout (→ slow boot, held frame):
+On the A523 **nothing in the device tree claims the `VI`, `VO0` or `VO1` power domains.** The only
+in-tree consumers of pck-600 are the display engine and mixer (`PD_DE`) and GMAC1 (`PD_VO1`, which is
+`status = "disabled"` on this board). `tcon_top@5500000`, `tcon1@5502000` and `dsi1@5508000` carry
+**no `power-domains` property at all**.
 
-```
-[drm] *ERROR* [CRTC:39:crtc-0] vblank wait timed out
-[drm] *ERROR* flip_done timed out
-[drm] *ERROR* [PLANE:35:plane-0] commit wait timed out
-```
-
-`/proc/interrupts`:
-
-```
-476:  0 0 0 0 0 0 0 0  GICv3 124 Level  5502000.lcd-controller
-```
-
-The TCON IRQ **never increments**. And the driver's own regmap readback inside `enable_vblank()`
-(not `/dev/mem` — `CONFIG_STRICT_DEVMEM=y` here) shows the TCON registers **all-zero at that moment**:
-
-```
-SUN4I-VBL: enable_vblank(1) GINT0=0x00000000 TCON0_CTL=0x00000000 CPU_IF=0x00000000   @ t=9.5s
-```
-
-…yet the real modeset/`fb0` only lands at **t≈43 s** (the pipeline spends ~34 s in deferred-probe
-retries before everything is up).
-
-### Why that matters for an 8080/CPU-IF panel
-In TCON CPU-interface mode the TCON signals a completed frame via **`TCON0_TRI_FINISH_INT`**, *not* the
-free-scan `VBLANK_INT`. The current IRQ handler only completes DRM vblank/flip on `VBLANK_INT`:
+That is harmless right up until the provider's `sync_state()` runs. In
+`drivers/pmdomain/core.c`:
 
 ```c
-/* sun4i_tcon_handler() */
-if (status & (VBLANK_INT(0) | VBLANK_INT(1))) {        /* never set in CPU-IF mode */
-        drm_crtc_handle_vblank(&scrtc->crtc);
-        sun4i_tcon_finish_page_flip(drm, scrtc);
-}
-...
-if (a523_stock_trigger && (status & TCON0_TRI_FINISH_INT)) {   /* the event we SHOULD get */
-        /* re-arms the CPU-IF push, but never tells DRM a frame finished */
-}
+void of_genpd_sync_state(struct device_node *np)
+{
+	list_for_each_entry(genpd, &gpd_list, gpd_list_node) {
+		if (genpd->provider == of_fwnode_handle(np)) {
+			genpd->stay_on = false;
+			genpd_power_off(genpd, false, 0);
 ```
 
-## 3b. Register-level findings (2026-10-15, via an `ioremap` debug module — `/dev/mem` is unreliable here even with `STRICT_DEVMEM=n`)
+`genpd_set_stay_on()` marks every domain that is already on at init with `stay_on = true` — that is
+what carries bootloader-enabled domains safely past `genpd_power_off_unused()` at `late_initcall`.
+`sync_state()` revokes that protection **for every domain of the provider at once**. The mixer is
+pck-600's last deferred consumer, so the instant `sun8i-mixer` *probes*, seven domains go down
+together — including the ones the display output blocks live in.
 
-Read directly from the clocked blocks (kernel `ioremap`+`readl`, corroborated by the driver's own regmap):
+Note this is the **platform driver probe**, not the component bind: `sun8i-mixer` does not depend on
+`sun4i-drm`, so loading it alone cannot complete the component set, and every clock/reset/register
+write in that driver lives in `sun8i_mixer_bind()`. No DE register is touched. That is why the
+earlier bisect in this document could pin the collapse on `sun8i_mixer` while the master was not
+even loaded — a result that made no sense under any "DE power-up transient" theory.
 
-```
-CCU resets (1 = out-of-reset):  DE=1  DISPLAY0_TOP=1  MIPI_DSI1=1  TCON_LCD1=1   (LVDS1=0, unused/DSI board)
-CCU gates:  tcon-lcd1 bus=1, tcon-lcd1 mod @62 MHz (clk_summary)
-tcon1 @0x5502000:  CTL(0x40)=0  GINT0(0x04)=0  GINT1(0x08)=0  curline(0xfc)=0
-tcon-top @0x5500000 = 0 ;  dsi1 @0x5508000 = 0
-```
+### The evidence
 
-So the TCON (and tcon-top/dsi1) are **clocked and out of reset, but their registers are all zero** — the
-**TCON core is never enabled/configured** (`CTL` bit31 TCON_ENABLE clear, `curline`=0 → not scanning). This
-rules out clock-gating, reset, and IRQ-index as causes. tcon0 @0x5501000 is clock-disabled, so scanout isn't
-secretly on it either. **The vblank/flip_done timeout is a downstream symptom: a disabled TCON can't scan or
-interrupt.** The panel's "white patch" is a stale/garbage DDIC state, never a driven frame.
+Paired cold boots, same kernel, same DTB, the only difference being `sun8i-mixer.ko` renamed
+`.ko.disabled`:
 
-## 4. Leading hypothesis (revised)
+| boot | mixer | VE | GPU | VI | VO0 | VO1 | DE | NAND | PCIE |
+|---|---|---|---|---|---|---|---|---|---|
+| mixer present | bound, refcnt 0 | off | off | off | off | off | on | off | off |
+| mixer absent | — | **on** | **on** | **on** | **on** | **on** | on | **on** | **on** |
 
-The DE/mixer `mode_set` runs and `fb0` is created, the TCON clock+reset are brought up, but the
-**sun4i_tcon CRTC enable never writes the TCON `CTL`/timing** (it stays 0) — so the 8080 CPU-IF scanout is
-never actually started on tcon1. (Earlier `enable_vblank` at t=9.5s also saw `CTL=0`, consistent: the TCON is
-simply never enabled, not just "vblank armed too early".) Why the atomic_enable / a523_stock_trigger config
-path doesn't configure the TCON on 7.3 is the open question — possibly the CRTC↔TCON/encoder binding (the log
-prints "Cannot find any crtc or sizes" at t=8.6s) or a DE33 enable-ordering gap.
+An unpowered block reads back as zero and swallows writes — which is exactly the symptom this
+document was built around (`CTL=0`, `GINT0=0`, `curline=0`, `tcon-top = 0`, `dsi1 = 0`).
 
-## 3c. ROOT CAUSE confirmed (2026-10-15, via `journalctl -b` + source trace)
+### The fix
 
-Boot log: the TCON binds and the mixer `mode_set 720x1280` runs, but there is **no `stock-trigger`
-diagnostic at all** — so `sun4i_tcon0_mode_set_a523_trigger()` (which writes the TCON `CTL`/8080 config) is
-**never called**. It is gated on `tcon->pixel_clk`, and that is **NULL**:
+The **vendor device tree marks exactly these three domains `ppu-always-on`** (`pd1_vi@2`,
+`pd1_vo0@3`, `pd1_vo1@4`); `pd1_de@5` is deliberately *not* marked. `sun55i-pck600.c` already
+supports per-domain flags — the A733 table uses `GENPD_FLAG_ALWAYS_ON` for `GPU_CORE` — so the fix
+is three flags:
 
 ```c
-tcon->pixel_clk = devm_clk_get_optional(dev, "pixel");   /* DT clock-name "pixel" */
-...
-if (tcon->pixel_clk && a523_stock_trigger) { ...a523_trigger (writes CTL)... }  /* skipped: pixel_clk NULL */
+static const struct sunxi_pck600_pd_desc sun55i_a523_pck600_pds[] = {
+	{ "VE", }, { "GPU", },
+	{ "VI", GENPD_FLAG_ALWAYS_ON },
+	{ "VO0", GENPD_FLAG_ALWAYS_ON },
+	{ "VO1", GENPD_FLAG_ALWAYS_ON },
+	{ "DE", }, { "NAND", }, { "PCIE", },
+};
 ```
 
-The tcon-lcd1 DT node has `clock-names = "ahb", "tcon-ch0"` — **no "pixel" clock** (true on both our 7.3
-reconcile DT *and* the HW-proven 7.2 DTB). So `devm_clk_get_optional(dev, "pixel")` returns NULL → the whole
-A523 CPU-IF config path is skipped → the TCON is never enabled (`CTL=0`) → no scanout → no `TRI_FINISH` IRQ
-→ `flip_done` times out → the panel shows only the "full-white" gate-workaround/garbage.
+→ `kernel/patches/0039-pmdomain-sunxi-pck600-keep-A523-VI-VO0-VO1-always-on.patch`
 
-This is reinforced by the solve's own documented gap: `sun4i_tcon_route_displl()`'s DT-graph id lookup
-"does not resolve to 0/1", so `set_displl()` (the per-LCD DISPLL pixel-clock routing) is never reached — the
-code works around it by force-opening both DSI datapath gates at tcon-top bind ("HW-proven full-white …
-clean per-LCD routing via set_displl is a follow-up once the graph lookup is fixed"). So the full A523 8080
-bring-up (DISPLL pixel clock + `CTL` config) has **never actually run** on this path.
+**Is pinning them always-on the right shape?** Probably not the *best* one — see §6 Q1. Giving the
+TCON/TCON-TOP/DSI nodes real `power-domains` so they claim what they actually use looks more
+correct, and we'd rather land that if someone can confirm the domain↔block mapping.
 
-**Fix direction (next focused session):** (1) provide the TCON's "pixel" clock in the DT (clock-names +=
-"pixel" → the DISPLL-routed pixel clock) so `tcon->pixel_clk` is non-NULL and the a523 config path runs; and
-(2) fix `sun4i_tcon_of_get_id_from_port()` / the tcon-top↔tcon1 OF-graph so `route_displl()` resolves the id
-0/1 and `set_displl()` routes the DISPLL pixel clock per-LCD instead of the force-open-gates workaround. The
-panel `drm_display_mode` must also equal the a523_trigger guard (clock 48000, htotal 844, vtotal 1309) — done
-2026-10-15. The `TRI_FINISH → drm_crtc_handle_vblank` patch then completes the per-frame flip.
+### Before / after on hardware (v7.3-rc7, same tree, same DTB, same modules)
 
-## 4b. Original leading hypothesis (superseded by §3b/§3c/§4)
+| | before | after patch 0039 |
+|---|---|---|
+| `TCON0_CTL` | `0x00000000` | **`0x800001d0`** (bit31 `TCON_ENABLE` set) |
+| `GINT0` | `0x00000000` | **`0xc8008003`** (armed) |
+| tcon IRQ, GIC 124 | **0**, never increments | **547** during boot |
+| `flip_done` / vblank timeouts | every commit, 10 s each | **0** |
+| `fb0` created at | t ≈ 43 s | **t ≈ 9.55 s** |
+| `tcon_curline` (`0xfc`) | `0` (not scanning) | moving: `83390000, 80c30000, a3a60000, …` |
+| connector | — | `card1-DSI-1 connected / enabled / 720x1280` |
+| side-board 5 V (LED ring, gamepad MCUs, fan) | dead until cold boot | **alive** |
 
-`enable_vblank()` runs **at t≈9.5 s, before the TCON's `atomic_enable` has configured/clocked it**
-(`TCON0_CTL=0`), so the `GINT0 |= TRI_FINISH_ENABLE` write is lost. DRM's vblank refcount then stays
->0, so after the *real* modeset (t≈43 s, TCON now live) `enable_vblank()` is **not called again** →
-`TRI_FINISH_ENABLE` is never actually set on the live TCON → the IRQ never fires → `flip_done` never
-completes.
+There are **no `*ERROR*` lines in the boot log at all** now.
 
-(Secondary, not yet excluded: `enable_vblank` targeting the wrong TCON instance — tcon0 @0x5501000 vs
-our tcon1 @0x5502000. We can't `devmem`-probe to confirm — `STRICT_DEVMEM` — so a `STRICT_DEVMEM=n`
-rebuild or more driver logging is the next step.)
+---
 
-### Candidate fix (built, HW-tested, currently inert)
-`kernel/harvest-sun55i-de/vblank-tri-finish.candidate.patch`: drive `drm_crtc_handle_vblank()` +
-`sun4i_tcon_finish_page_flip()` from the `TRI_FINISH_INT` branch. Build-verified on v7.3-rc7; deployed
-to HW — **no change**, precisely because `TRI_FINISH` never arrives. The fix is necessary but not
-sufficient; the gating problem is **arming/raising the TCON IRQ at all**.
+## 3. Why this also killed the side board (same bug, different victim)
 
-### Next steps we're taking
-1. Arm `TRI_FINISH_ENABLE` in the TCON **enable/mode_set** path (runs when the TCON is live), not only
-   in DRM's `enable_vblank`; and/or force a vblank off→on cycle after the pipeline is up.
-2. Rebuild with `STRICT_DEVMEM=n` (or add logging of the TCON base + `GINT0/CTL` at `atomic_enable`) to
-   confirm instance + clock/ordering, and watch `/proc/interrupts` for the IRQ to start counting.
+On this handheld the same sweep took down a 5 V rail feeding the side board — LED ring, gamepad
+MCUs and fan — permanently, until a cold boot. That sent us a long way down the wrong path: it
+looked like a *board-level latch* tripped by a DE power-up transient, because re-pulsing the enable
+GPIO never recovered it and only a power-cycle did (the bootloader is what turns those domains back
+on). Measurements kept coming back clean — no current delta, no AXP fault, every pin and regulator
+still reading correct — for the simple reason that nothing had faulted. The kernel had switched a
+domain off on purpose.
 
-## 5. Heat / fractal — resolved understanding (confirms the LP-11 duty hypothesis)
+If you are chasing an Allwinner rail that dies "when the display driver loads" and reads perfectly
+healthy in sysfs while dead: check `pm_genpd_summary` before and after the probe.
 
-Earlier "fractale + CRT-lines + IC heating" turned out to be **thermal, tied to DSI HS-clock duty**:
-mainline holds the DSI HS clock at ~100 % duty between frames; stock parks **LP-11** (~15 %). Observed
-on HW: the fractal appears only when the DDIC is **hot**, and **clears as it cools** — the v7.3 path
-with a correct RCQ runs the DDIC **cool ("cooler than stock")**, and a fractal we saw was residual heat
-carried over from a hot v7.2 session. So: **fractal == hot DDIC; cool DDIC == no fractal.** Parking
-LP-11 between frames (to cut HS duty) remains a separate improvement, but heat is no longer the blocker.
+---
 
-## 6. TE (tearing-effect) — checked, not a shortcut here
+## 4. What works now
 
-The panel init enables TE (`DCS 0x35 SET_TEAR_ON`), which would be the natural per-frame sync. But the
-**vendor DTS routes no TE pin**: DSI1 is exactly the 10 lanes `PD10–PD19`, with no `te-gpios`, no
-`lcd_dsi_te`, and no sunxi `lcd_*` panel config (the `lcd0` node is a stub; the vendor panel config lives
-in its kernel/FEX). So **TE is not available as a GPIO IRQ**. It *might* be delivered in-band over the
-DSI link — if anyone knows whether `sun6i_mipi_dsi` / the A523 TCON can latch an in-band DSI TE to drive
-per-frame sync, that's a lever we'd use. Otherwise the `TRI_FINISH` path is the vblank source.
+- Full pipeline binds: mixer0, tcon_top, tcon-lcd1, dsi1, combo-phy, panel; `fb0` + `card0/1/2`.
+- `sun55i_de: mode_set 720x1280`, `enable 720x1280 port2chn_mux=0x80`, `TCON-TOP-DE: mixer=0 tcon=1
+  PORT_SEL=0x1`, `SUN4I-TCON-DBG ch0 en=1 dclk=48000000`.
+- DSI transmits: `SUN6I-DSI-VID: CTL0=0x00030001 CTL1=0x00000015`, HS clock 288 MHz for a 48 MHz
+  pixel clock, non-burst.
+- TCON enabled, scanning, interrupting. Backlight on. **Every atomic commit completes** — no more
+  10 s stalls, so boot is ~33 s faster.
+- RCQ pool: the mixer needs a **low `reserved-memory` CMA** (`alloc-ranges 0x43000000`); the DE DMA
+  only reaches ~`0x4b000000`, and without it the mixer bind fails `-34`.
 
-## 7. Open questions (where fresh insight would help most)
+---
 
-1. **A523/H616/T527 DE33 + TCON-LCD in 8080 CPU-IF mode:** what's the intended per-frame completion IRQ
-   for a command/CPU-IF-driven DSI panel, and is `TCON0_TRI_FINISH` the right event to feed
-   `drm_crtc_handle_vblank()`?
-2. **Why would `GINT0/TCON0_CTL` read 0 right after `enable_vblank`** — is this just DRM calling
-   `enable_vblank` before the CRTC `atomic_enable` (a known ordering for some drivers), and what's the
-   clean way to (re)arm the frame IRQ once the TCON is live?
-3. With `tcon_tv0` disabled and `tcon-lcd1` as CRTC-0, is there a known gotcha in the **CRTC↔TCON vblank
-   routing** on the A523 DE33 (e.g. the encoder's `possible_crtcs`, or the tcon-top mux index)?
-4. **In-band DSI TE** on `sun6i_mipi_dsi` / A523 — usable for per-frame sync without a GPIO?
-5. Anyone on the sister **A133 Smart Pro** (same CPU-IF DSI, per-frame trigger) — how did you wire
-   `TRI_FINISH` → vblank cleanly, and did you hit the same "IRQ never fires / enable_vblank too early"?
+## 5. The remaining blocker: backlight only, no image
+
+The panel lights but shows no picture. The pipeline is running, so this is now a much narrower
+question than before. The leading suspect:
+
+### `set_displl()` — the per-LCD DISPLL pixel-clock routing — has still never run
+
+```c
+	if (tcon->pixel_clk) {
+		ret = sun4i_tcon_route_displl(tcon, true);   /* → sun8i_tcon_top_set_displl() */
+		...
+	}
+```
+
+`tcon->pixel_clk` comes from `devm_clk_get_optional(dev, "pixel")`, and the `tcon-lcd1` node has
+`clock-names = "ahb", "tcon-ch0"` — **no `"pixel"`** — so it is NULL and the whole routing call is
+skipped. No `displl` diagnostic appears anywhere in the boot log.
+
+**And supplying the clock does not work** — we tried. Adding `clock-names += "pixel"` makes
+`pixel_clk` non-NULL, so bind enters `sun4i_tcon_route_displl()`, which then fails:
+
+```c
+	id = sun4i_tcon_of_get_id_from_port(port);
+	if (id < 0 || id > 1)
+		return -EINVAL;        /* ← the OF-graph lookup does not resolve to 0/1 */
+```
+
+and the error propagates to `goto err_assert_reset`, so **the TCON fails to bind entirely (-5)**.
+So the real defect is the **OF-graph id resolution**, not the missing clock; adding the clock just
+converts a silent skip into a hard bind failure. We reverted it.
+
+The current code works around all of this by force-opening both DSI datapath gates at tcon-top
+bind, instead of routing the DISPLL per-LCD. That is enough to get the TCON scanning and the DSI
+transmitting — but it may well not be enough to get real pixel data clocked into the panel, which
+would explain backlight-without-image.
+
+### Module parameters currently in effect
+
+`sun4i_tcon.a523_stock_trigger=Y`, `dsi_video_mode=Y`, `keep_active=Y`;
+`sun8i_mixer.use_rcq=Y`, `arm_at_target=Y`, `tcon_line_double=Y`, `tcon_curline_phys=0x55020fc`.
+The mixer reports `commits=4`, `rcq_status=264`.
+
+### Note on the frame IRQ at idle
+
+The TCON IRQ count is static at idle (547 → 547 over 3 s). That is expected for an 8080/CPU-IF
+panel — frames are produced on commit, not free-running — so it is not in itself a fault. It does
+mean anything relying on a steady vblank (fbcon damage, for instance) needs the per-frame re-trigger
+path. `kernel/harvest-sun55i-de/vblank-tri-finish.candidate.patch` (drive
+`drm_crtc_handle_vblank()` + `sun4i_tcon_finish_page_flip()` from `TRI_FINISH_INT`) was previously
+inert because `TRI_FINISH` never arrived; **it is now worth re-evaluating**, since the IRQ fires.
+
+---
+
+## 6. Open questions — where fresh insight would help most
+
+1. **Domain ↔ block mapping.** Which pck-600 domain actually contains TCON-LCD0/1, TCON-TOP and the
+   DSI host on A523/T527 — `VO0`, `VO1`, or split? We pinned VI/VO0/VO1 always-on because the vendor
+   DT does, but the cleaner fix is `power-domains = <&pck600 PD_VOx>` on the consumers. Does anyone
+   have the authoritative mapping?
+2. **Is this generic to sunxi genpd providers?** Any Allwinner SoC whose DT under-describes domain
+   consumers should hit the same `sync_state()` sweep. H616/H6 DE33 users: does
+   `pm_genpd_summary` change across your display probe?
+3. **`sun4i_tcon_of_get_id_from_port()` on a DE33 tcon-top graph** — why does it fail to resolve
+   tcon-lcd1 to id 0/1, and what's the correct graph shape so `set_displl()` can run per-LCD instead
+   of force-opening both gates? This is the single most useful thing to fix next.
+4. **Backlight but no image with the TCON scanning and the DSI transmitting** — on a CPU-IF/8080
+   DSI panel, what else must be configured for pixel data to actually land? Is the DISPLL routing in
+   Q3 load-bearing for this, or is it a separate DE→TCON data-path issue?
+5. **In-band DSI TE** on `sun6i_mipi_dsi` / A523 — usable for per-frame sync without a GPIO? The
+   panel enables TE (`DCS 0x35 SET_TEAR_ON`), but the vendor DTS routes **no TE pin** (DSI1 is
+   exactly `PD10–PD19`, no `te-gpios`), so it is not available as a GPIO IRQ.
+6. Anyone on the sister **A133 Smart Pro** (same CPU-IF DSI, per-frame trigger) — how did you wire
+   `TRI_FINISH` → vblank cleanly?
+
+---
+
+## 7. Heat / fractal — resolved understanding
+
+Earlier "fractal + CRT-lines + IC heating" turned out to be **thermal, tied to DSI HS-clock duty**:
+mainline holds the DSI HS clock at ~100 % duty between frames; stock parks **LP-11** (~15 %).
+Observed on HW: the fractal appears only when the DDIC is **hot** and clears as it cools. So
+**fractal == hot DDIC**. Parking LP-11 between frames remains a worthwhile improvement, but heat is
+not the blocker.
+
+---
 
 ## 8. Reproducibility
 
-- Base: mainline **v7.3-rc7**. Build recipe + patches + DT: the repo above (`assemble-7.3.sh`,
-  `kernel/patches/`, `dts/`, `kernel/harvest-sun55i-de/`).
+- Base: mainline **v7.3-rc7**. Build recipe + patches + DT: this repo (`kernel/patches/`, `dts/`,
+  `kernel/harvest-sun55i-de/`).
+- The power-domain fix is `kernel/patches/0039-pmdomain-sunxi-pck600-keep-A523-VI-VO0-VO1-always-on.patch`;
+  it applies cleanly to the pristine v7.3-rc7 `drivers/pmdomain/sunxi/sun55i-pck600.c` and is the
+  exact source built for the measurements in §2.
 - Display: `drm-display-provisional.patch` (BSP-derived, not upstream-clean) + `dts/trimui-de33.dtsi`
-  (+ low-CMA) + `dts/trimui-de-reconcile.dtsi` + `dts/trimui-panel.dtsi`.
-- Deeper driver-level analysis + the candidate patch: `docs/DISPLAY-VBLANK-ANALYSIS.md`,
-  `kernel/harvest-sun55i-de/vblank-tri-finish.candidate.patch`.
-- On-HW status: boots; Wi-Fi/Tailscale, storage, thermals (5 zones + working pwm-fan), audio/cpufreq
-  pending patch rebases; **display = this doc's blocker.** v7.2-rc3 is the HW-proven baseline.
+  (+ low CMA) + `dts/trimui-de-reconcile.dtsi` + `dts/trimui-panel.dtsi`.
+- To reproduce the original failure, simply revert patch 0039 and watch `pm_genpd_summary` across
+  `modprobe sun8i_mixer`.
+- On-HW status: boots; Wi-Fi/Tailscale, storage, thermals (5 zones + working pwm-fan), audio,
+  gamepad, side board all working. **Display: pipeline live, image pending (§5).**
+
+---
+
+## 9. History — superseded analysis (kept for the record)
+
+Earlier revisions of this document pursued, and can now be closed out:
+
+- *"`enable_vblank()` runs before `atomic_enable`, so `TRI_FINISH_ENABLE` is lost"* — plausible, but
+  not the cause; `GINT0` is armed correctly once the block has power.
+- *"The a523 CPU-IF config path is skipped because `tcon->pixel_clk` is NULL"* — the gating is real
+  (§5) but it was **not** why the TCON read zero; the registers were unpowered. Supplying the clock
+  breaks bind, see §5.
+- *"A DE power-up transient browns out a shared rail / trips a board-level latch"* — wrong. There
+  was no transient and no latch; `sync_state()` switched the domains off deliberately.
+- *"Display and the side board are mutually exclusive on mainline"* — wrong, and now disproven on
+  hardware: both run together.
