@@ -13,9 +13,10 @@
 > The TCON is now enabled, scanning, interrupting, and **every `flip_done` completes**.
 > Since then the pipeline has been driven to match the vendor's live register capture
 > **register for register** — TCON, every DSI sync-timing register, the DE33 top block, and the
-> D-PHY including its status register. **It still shows backlight only, no image.** So the
-> remaining divergence is no longer in any register we have a stock reference for. See §5 for the
-> full diff and §6 for where fresh eyes would help most.
+> D-PHY including its status register. **★ 2026-10-19, later the same day: the panel now displays** — the last blocker was
+> the panel `reset-gpios` polarity (§5e), not a register at all. What remains is image quality.
+> See §5 for the register diff, §5e for the reset-polarity fix, and §6 for where fresh eyes
+> would help most.
 
 ---
 
@@ -208,16 +209,17 @@ Everything with a stock reference now matches: DETOP `000/004/008/010/014/018/01
 (curline) advancing, and DSI1 `000`–`0d0` including every sync-timing register. TCON IRQ runs at
 ~3300 per boot with **zero** `flip_done` timeouts; `fb0` is 720x1280x32.
 
-Still unaccounted for:
+Status of the leftovers (updated 2026-10-19):
 
-1. **The RCQ has never been inspected.** `use_rcq=Y`, so the layer configuration reaches the
-   hardware through a DMA list, not through the registers above. Every register can read correct
-   while the list feeds the DE something wrong. This is the biggest untouched surface.
-2. **detop `0x018`** reads `0x6d5f4000`, while our framebuffer is at `0x44100000`
-   (`DBG FILL dma=…44100000`). `0x6d5f4000` is *above* the ~`0x4b000000` the DE can address —
-   which is why the low-CMA `alloc-ranges 0x43000000` exists at all. It also matches the stock
-   capture byte for byte, which is too improbable for a real framebuffer address, so the capture
-   may simply have mislabelled this register. Unconfirmed either way.
+1. ~~**The RCQ has never been inspected.**~~ **CLOSED 2026-10-19.** `use_rcq` is a live module
+   param and the MMIO-direct fallback works: with `use_rcq=N` the hardware read-back
+   `hw_laddr=44100000` equals our framebuffer, so both commit paths latch. (The older note
+   claiming "AHB never latches" predated the power-domain fix and was an artefact of it.)
+   The RCQ was not the problem.
+2. ~~**detop `0x018`**~~ **CLOSED 2026-10-19.** Not the layer framebuffer pointer — the real
+   one reads back as `0x44100000` through the mixer's MMIO. The stock capture mislabelled it:
+   nothing in our driver writes `0x18`, and the vendor's own sun55iw3 map has no `0x8018`
+   entry (its neighbour `0x8014` is `DE_VER_CTL`, which also reads identically on both).
 3. DSI `0x004` = `0x0a070000` vs stock `0x00020004`; DSI `0x2f4` = `0xf0000000` vs stock
    `0xf0050000`. (TCON1 `0x004` is `GINT0`, interrupt enables — expected to differ.)
 
@@ -229,6 +231,43 @@ relying on a steady vblank (fbcon damage) needs the per-frame re-trigger path.
 `kernel/harvest-sun55i-de/vblank-tri-finish.candidate.patch` was previously inert because
 `TRI_FINISH` never arrived; **it is now worth re-evaluating**, since the IRQ fires.
 
+### 5e. ★ Root cause of "backlight only": the panel reset polarity
+
+```
+reset-gpios = <&pio 3 22 GPIO_ACTIVE_HIGH>;   /* held the DDIC in reset */
+reset-gpios = <&pio 3 22 GPIO_ACTIVE_LOW>;    /* correct */
+```
+
+`trimui_panel_prepare()` asserts reset, waits 20 ms, releases, settles 120 ms, then sends the init.
+With `ACTIVE_HIGH` that drives PD22 high briefly and then **low for the entire init**, so the DDIC
+is held in reset throughout. It ignores every command silently (DCS writes are not acked, so
+`accum_err` stays 0 and the panel still attaches), never starts its internal charge pump, and the
+liquid crystal never modulates — the backlight passes through uniformly no matter what the DE,
+TCON, DSI and PHY are doing.
+
+The tell was one line of `/sys/kernel/debug/gpio`: the panel's reset was the only one on the board
+without the `ACTIVE LOW` tag and the only one parked low.
+
+```
+gpio-118 (reset) out lo              <- panel PD22
+gpio-7   (reset) out hi ACTIVE LOW
+gpio-33  (reset) out hi ACTIVE LOW
+gpio-37  (reset) out hi ACTIVE LOW
+```
+
+**How it was isolated:** not by more register diffing, but with the TCON's own pattern generator.
+`TCON0_CTL` bits [2:0] are `src_sel` (`LCD_SRC_DE=0, COLOR_BAR=1, GRAYSCALE=2, BLACK_BY_WHITE=3,
+BLACK=4, WHITE=5, GRID=7` in the BSP's `de_lcd.h`; the same field as mainline's
+`SUN4I_TCON0_CTL_SRC_SEL_MASK`). Alternating solid white and solid black straight out of the TCON,
+at full backlight in a darkened room, produced **zero** change — which exonerated the DE, mixer,
+RCQ, layers and framebuffer in a single test and forced the search downstream of the TCON.
+
+**Now observed:** white with a visible grid across the whole screen, vertical flicker along the
+right edge, backlight changes taking effect, and the DDIC warming. The remaining questions are
+image quality: the grid (pixel format / stride packing?), the edge flicker (horizontal timing
+margin / porches?), and the DDIC heat, which is the known HS-clock duty issue (mainline holds the
+HS clock at ~100 % duty between frames where stock parks LP-11 at ~15 %).
+
 ## 6. Open questions — where fresh insight would help most
 
 1. **Domain ↔ block mapping.** Which pck-600 domain actually contains TCON-LCD0/1, TCON-TOP and the
@@ -238,13 +277,13 @@ relying on a steady vblank (fbcon damage) needs the per-frame re-trigger path.
 2. **Is this generic to sunxi genpd providers?** Any Allwinner SoC whose DT under-describes domain
    consumers should hit the same `sync_state()` sweep. H616/H6 DE33 users: does
    `pm_genpd_summary` change across your display probe?
-3. ★ **The DE33 RCQ list.** With `use_rcq=Y` the layer config is DMA'd to the DE from a register
-   command queue, so the MMIO above can be stock-correct while the queue feeds the DE garbage.
-   Has anyone dumped/validated an A523 or H616 DE33 RCQ head array + list, and is there a known-good
-   reference for what the first UI layer's entries should contain?
-4. **Backlight but no image with the TCON scanning, the DSI transmitting and the PHY status
-   matching stock** — on a CPU-IF/8080 DSI panel, with every captured register equal to the vendor's,
-   what is left that could stop pixel data landing?
+3. **The DE33 RCQ list** (no longer blocking — see §5d). Still of interest: is there a
+   known-good reference for an A523/H616 DE33 RCQ head array and list? We now run with
+   `use_rcq=N` proven to work too, so the two can be compared.
+4. **Image quality now that the panel is driven (§5e)** — a regular grid across the
+   whole screen and vertical flicker confined to the right edge. Pixel-format/stride packing
+   and horizontal timing margin are the obvious suspects; pointers from anyone who has tuned
+   a CPU-IF/8080 DSI panel on sunxi would help.
 5. **detop `0x018`** — is this really the layer framebuffer DMA address on DE33? Ours reads
    `0x6d5f4000`, above the DE's ~`0x4b000000` reach, while the actual fb is at `0x44100000`.
 6. **In-band DSI TE** on `sun6i_mipi_dsi` / A523 — usable for per-frame sync without a GPIO? The
