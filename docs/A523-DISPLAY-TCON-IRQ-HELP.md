@@ -4,7 +4,7 @@
 **Date:** 2026-10-19 (updated 2026-10-26) · **Kernel:** mainline **v7.3-rc7** · **SoC:** Allwinner **A523** (sun55iw3) ·
 **Repo:** https://github.com/MidG971/trimui_smart_pro_s
 
-> ## ★★ 2026-10-26 CURRENT STATE — the real blocker is the RTMX RCQ DMA
+> ## ★★ 2026-10-26 CURRENT STATE — the DE accepts config but never completes a frame
 > *(This supersedes the "it decodes / transfer starves" claims in the TL;DR and §5g below,
 > which were confounded by leftover debug code — a `memset(fb,0xff)` whitefill + a forced
 > white blender fill + a disabled UI layer in `sun55i_de.c`, all since removed — and do not
@@ -26,40 +26,47 @@
 > still got nothing — so VI0-vs-UI6, landscape-vs-portrait, VSU on/off, sizes and muxes are all
 > downstream.
 >
-> **Root cause: the RTMX RCQ DMA never completes a load.** On the DE33 the compose+stream is
-> driven by the DE-top "RTMX" RCQ — a DMA command queue at `DE+0x8100` (`GLB_CTL 0x8100`,
-> `GLB_STS/status 0x8104`, `OUT_SIZE 0x8108`, `AUTO_CLK 0x810c`, `RCQ_CTL 0x8110`,
-> head-ptr `0x8114`). Note the mainline driver's `top_regs`/`SUN8I_MIXER_GLOBAL_*`/
-> `SUN55I_MIXER_RCQ_*` registers map onto this block, i.e. the port already drives the same
-> RTMX RCQ the vendor does. Evidence of the failure:
-> - The RCQ head array is correct (driver `dump_arms`): each block `dirty=1` with the right
->   shadow data (OVL `0x1c1000` shadow ATTCTL=`0xff000403`; blender `0x281000` shadow
->   `0101 / ff000000 / 02cf04ff`), correct `len` and `reg_offset`.
-> - Yet the live DE registers stay at reset (OVL reads `0xff000401`, blender `0`, VSU `0`) —
->   the shadow is never copied in.
-> - RCQ status `0x8104` is **perpetually BUSY (bit4), never FINISHED (bit2)** — confirmed
->   against the vendor's own `de_top_query_state_is_busy()` (`reg & 0x10`). Firing the CPU-IF
->   `TRIGGER_START` does not unstick it.
+> **Corrected root cause (2026-10-26, later update): the DE never completes a FRAME — it is NOT
+> a stuck RCQ.** An earlier version of this section blamed a "stuck RTMX RCQ DMA (perpetually
+> BUSY, never FINISHED)." A read-only on-HW probe of the DE-top RTMX block (`DE+0x8100`:
+> `GLB_CTL 0x8100`, `GLB_STS 0x8104`, `OUT_SIZE 0x8108`, `RCQ_CTL 0x8110`, head-ptr `0x8114`)
+> against the stock oracle disproves that. Decoding `GLB_STS 0x8104` with the vendor's own
+> `de_top.h` (bit0=FRAME_END, bit2=RCQ_FINISH, bit3=RCQ_ACCEPT, bit4=BUSY):
 >
-> ⇒ The RTMX RCQ **accepts** a well-formed queue but the DMA load **never executes**, so no
-> block is applied and no frame is composited — a permanent blank, independent of register
-> values. This explains both driver paths: `use_rcq=Y` kicks the stuck RCQ (nothing applies);
-> `use_rcq=N` writes the registers by AHB but never runs an RCQ compose cycle (no output).
+> | `GLB_STS 0x8104` | FRAME_END b0 | RCQ_FINISH b2 | RCQ_ACCEPT b3 | BUSY b4 | b8 |
+> |---|:---:|:---:|:---:|:---:|:---:|
+> | **stock** `0x119` (display working) | **1** | 0 | 1 | 1 | **1** |
+> | **ours** `0x18` | **0** | 0 | 1 | 1 | 0 |
 >
-> **Ruled out as the cause of the stuck RCQ:** DE core clock / AHB-reset / MBUS clock (all
-> enabled, matching the vendor at `0x8000/0x8004/0x8008`); `ahb_read_mode`/"conflict mode"
-> (a no-op on sun55iw3); the RCQ head format (`len:24 | high_addr:8`, `dirty:1`, `reg_offset`
-> — matches the BSP `de_rcq_head`); the head `reg_offset` base and the shadow data-source
-> addresses; head-array even-alignment and zero-termination.
+> - **BUSY (bit4) = 1 on the working stock display too** — it is the DE's normal RT-running
+>   steady state, not a stall. The "stuck RCQ" reading was simply wrong.
+> - **RCQ_ACCEPT (bit3) = 1 on ours** — the DE *accepted* the head/config.
+> - The datapath registers are in fact **applied**: in the current `use_rcq=N` (AHB) mode the
+>   live OVL ATTCTL (`0xff000403`), blender out-size (`0x02cf04ff`), route, `OUT_SIZE`
+>   (`0x02cf04ff`) and the `de2tcon`/`port2chn` muxes all match the stock dump. (The RCQ is not
+>   in the apply path in AHB mode, so its BUSY bit is irrelevant there.)
+> - **The real divergence is FRAME_END (bit0): stock = 1, ours = 0.** Across 8 samples over
+>   ~640 ms (~38 frames at 60 Hz) it is *never* set. Stock also sets `GLB_STS` **bit8** (an
+>   RT-active status) that ours never shows.
 >
-> **★ Where fresh eyes would help most:** why does the A523 (DE-v35x) RTMX RCQ DMA stay BUSY
-> and never FINISH given a correct head array and enabled clocks? Open candidates: an RTMX
-> enable/mode bit (vendor `RTMX_GLB_CTL 0x8100 = 0x01`; mainline writes `0xd1`, the extra bits
-> being FRAME_END/RCQ_FINISH/RCQ_ACCEPT IRQ enables); the memory attributes/placement required
-> for the RCQ head+data (must sit in the low DE-reachable CMA, ~`0x43000000`–`0x4b000000`); and
-> the per-frame RTMX "load" latch / frame-start that the BSP's `disp_al_manager_set_rcq_update()`
-> issues on the TCON vblank/TRI_FINISH IRQ in CPU-interface (8080) command mode. Input from the
+> ⇒ The blocker is not "config won't apply" (it applies). It is that **the DE's compose/scanout
+> engine never cycles a frame** — FRAME_END never asserts — so the TCON transmits (every
+> `flip_done` completes) but is fed no pixels. Permanent blank, independent of register values.
+>
+> **★ Where fresh eyes would help most:** on the A523 DE33 (DE-v35x) driving a **command-mode
+> (MIPI-DSI CPU-interface / 8080) panel**, what makes the RTMX frame engine actually *complete a
+> frame* (assert FRAME_END / the bit8 RT-active status)? Leading hypothesis: the DE is slaved to
+> the TCON's per-frame start, which in command mode only occurs per CPU-IF trigger — matching the
+> sister **A133 Smart Pro** observation that an 8080 DSI "needs a per-frame re-trigger." How does
+> the BSP couple the per-frame RTMX load (`disp_al_manager_set_rcq_update()`, issued on the TCON
+> vblank/`TRI_FINISH` IRQ) to the CPU-IF trigger so the DE keeps producing frames? Input from the
 > A523 DE-v35x RCQ-port authors would be especially valuable.
+>
+> *(Secondary divergences, probably not the gate: RCQ head `LEN` stock `0x6E0` vs ours `0x160`
+> — stock models ~5× more datapath blocks, only relevant if we switch to RCQ mode; and
+> `RTMX_GLB_CTL 0x8100` stock `0x01` vs ours `0xd1`, the extra bits being the
+> FRAME_END/RCQ_FINISH/RCQ_ACCEPT IRQ enables that the vendor also sets, via `de_top_enable_irq()`,
+> into this same register — harmless.)*
 
 
 
