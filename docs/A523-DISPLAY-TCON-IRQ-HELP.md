@@ -114,6 +114,19 @@ fault (the DE is not delivering scanned pixels into the DSI FIFO), and/or the DS
 the TCON0 DRQ/FIFO path (`TCON0_DRQ 0x7c`, CPU-IF FIFO), and the FSM loop termination — is the
 specific next thing to chase.
 
+Chasing that one step further: the DSI FSM is parked at `curr_instru_num = 3` (the **HSD / HS
+pixel-transfer instruction**, from `debug2` `0x2f0`), i.e. it is *poised to send pixels and waiting
+on an empty FIFO* — not stuck in setup. And the **entire DSI pixel-feed configuration is identical
+to the working stock** (`TCON_DRQ 0x7c`, `pixel_ctl0/1`, the pixel packet headers `0x90–0x9c`, and
+the sync packets all match). The FIFO stays empty in **both** `use_rcq=N` and `use_rcq=Y`. So the
+DSI is correctly configured and ready; **the data simply never arrives — the DE never delivers a
+scanned frame into the TCON→DSI FIFO.** The open fault is therefore on the **DE output / scanout
+side** (the DE's engine cycles and its registers match stock, but it produces no pixel stream):
+the DE output stage (formatter `0x5285000`, output CSC `0x528b000`), the DE→TCON data path, whether
+the DE actually fetches the framebuffer over MBUS, and whether the composite/scanout truly runs
+(vs. the RT engine merely ticking). Pointers from anyone who has driven the A523/DE33 → TCON-LCD →
+CPU-interface DSI path to first pixels would be very welcome.
+
 
 
 > **TL;DR (updated 2026-10-19)** — The blocker this document was originally written about
