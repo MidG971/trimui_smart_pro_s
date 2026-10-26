@@ -127,6 +127,20 @@ the DE actually fetches the framebuffer over MBUS, and whether the composite/sca
 (vs. the RT engine merely ticking). Pointers from anyone who has driven the A523/DE33 → TCON-LCD →
 CPU-interface DSI path to first pixels would be very welcome.
 
+Chasing the DE output stages (read while active): they are **all correctly configured**. The
+overlay layer points at a valid, DE-reachable framebuffer (`laddr0 = 0x44100000`, `ATTCTL` enabled,
+`720×1280`, pitch 2880); the blender has pipe0 enabled with the right in/out size and SRCOVER mode;
+the formatter (`0x5285000`) and output CSC (`0x528b000`) match stock. (The one blender-route
+difference — ours routes pipe0 to channel 1 vs stock's channel 0 — is just our UI-channel vs the
+vendor's VI-channel mapping, and is internally consistent with our mux setup.) Despite all of that,
+the DSI pixel FIFO stays **empty** — count 0, *not* full of black — so this is not a wrong-content
+problem: **the DE never clocks any pixel stream out at all.** The remaining fault is therefore the
+DE scanout/output engine itself not running — most likely the DE↔TCON real-time timing sync (the DE
+in RT mode is slaved to the TCON's pixel clock / DE / sync to clock pixels out; if that feedback
+isn't reaching the DE, the pipeline is configured but never produces a stream). The DE here uses
+physical addresses (no IOMMU; it reaches only low DRAM `< ~0x4b000000`). That DE↔TCON scanout clock
+is the next thing to chase.
+
 
 
 > **TL;DR (updated 2026-10-19)** — The blocker this document was originally written about
