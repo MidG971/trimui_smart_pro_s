@@ -68,6 +68,33 @@
 > FRAME_END/RCQ_FINISH/RCQ_ACCEPT IRQ enables that the vendor also sets, via `de_top_enable_irq()`,
 > into this same register — harmless.)*
 
+### Update 2026-10-26 (later): found+fixed a real DSI register gap — the DE frame still doesn't complete
+
+A live-vs-stock diff of the whole output path (TCON-LCD1 + DSI host) found the one real
+register gap: the **A523 DSI has a SECOND instruction-function bank** at `0x5508120`
+(`dsi_inst_func1[7]`) + `inst_loop_sel1` at `0x140`. The instruction FSM runs a unified
+program over IDs 0–15 — the primary bank (`0x20`, IDs 0–7) that the mainline `sun6i_mipi_dsi`
+driver programs, and this second bank (IDs 8–14) that it **did not know about and left at
+zero**. Every FSM jump into 8–14 executed a null (STOP, no lanes) instruction, so the HS
+pixel transfer never ran.
+
+Fix (mirrors the vendor `de_dsi` second-bank program; values verified against the stock
+capture): add `SUN6I_DSI_INST_FUNC1_REG(n)=0x120+n*4`, `INST_LOOP_SEL1_REG=0x140`,
+`DSI_INST_MODE_SCINIT=6`, and a `sun6i_dsi_inst_init_bank1()` writing the 7 instructions +
+`loop_sel1`, gated to the A523 variant. **On HW this works and is a real improvement** — the
+bank is now programmed and the DSI transfer FSM is *alive* (`GLB_STS` bit8 / RT-active, which
+was frozen at 0, now runs). **But the panel is still blank and `FRAME_END` still never asserts.**
+
+So the second bank was **necessary but not sufficient**. With every static output-path register
+now converged to stock *and* the FSM live, the DE frame still never completes — which means the
+**remaining blocker is dynamic, not a register value**: the DSI HS transfer / TCON→DSI FIFO
+drain never finishes a frame (also consistent with an earlier "transfer starves after a few
+lines" observation). The ruled-out non-causes this round: TCON `CPU_IF 0x60` bit22 (= `rd_flag`,
+a hardware transfer-status bit), TCON `TRI1` high half (= `block_current_num`, a read-only
+counter), and DSI `blk_vblk` (a 4-byte vertical-blanking alignment pad). **Input on the A523
+command/CPU-interface DSI *transfer completion* (per-frame `TRI_FINISH`, FIFO backpressure, HS
+clock-lane duty) is where help is now most useful.**
+
 
 
 > **TL;DR (updated 2026-10-19)** — The blocker this document was originally written about
