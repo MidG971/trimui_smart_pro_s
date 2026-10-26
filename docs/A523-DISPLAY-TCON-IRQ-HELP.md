@@ -1,8 +1,67 @@
 <!-- SPDX-License-Identifier: (GPL-2.0-only OR MIT) -->
 # A523 (Trimui Smart Pro S) mainline MIPI-DSI — DE/TCON bring-up (help / insights welcome)
 
-**Date:** 2026-10-19 · **Kernel:** mainline **v7.3-rc7** · **SoC:** Allwinner **A523** (sun55iw3) ·
+**Date:** 2026-10-19 (updated 2026-10-26) · **Kernel:** mainline **v7.3-rc7** · **SoC:** Allwinner **A523** (sun55iw3) ·
 **Repo:** https://github.com/MidG971/trimui_smart_pro_s
+
+> ## ★★ 2026-10-26 CURRENT STATE — the real blocker is the RTMX RCQ DMA
+> *(This supersedes the "it decodes / transfer starves" claims in the TL;DR and §5g below,
+> which were confounded by leftover debug code — a `memset(fb,0xff)` whitefill + a forced
+> white blender fill + a disabled UI layer in `sun55i_de.c`, all since removed — and do not
+> survive clean testing.)*
+>
+> **The DE→TCON handoff delivers nothing.** With the debug hacks gone, the TCON transmits
+> fine (every `flip_done` completes, IRQs fire) but the DE never feeds it pixels: solid
+> white, solid black, SMPTE and the console all show the DDIC's default grey. The TCON's own
+> internal pattern generator (`TCON0_CTL` src_sel=1) *does* reach the panel — isolating the
+> fault to the DE output, not the DSI/panel.
+>
+> **Stock oracle** (vendor firmware, display working; full dump in
+> `docs/STOCK-DE-DISPLAY-FULLDUMP-2026-10-22.txt`): the vendor composites the primary plane in
+> **VI channel 0** (not a UI channel), **VSU scaler disabled**, a **landscape 1280×720**
+> framebuffer (pitch 5120), routed disp0→tcon1.
+>
+> **Register values are NOT the blocker.** We programmed the DE to the vendor's exact config
+> (VI0, landscape, VSU off, every mux/size matching the dump, verified on live registers) and
+> still got nothing — so VI0-vs-UI6, landscape-vs-portrait, VSU on/off, sizes and muxes are all
+> downstream.
+>
+> **Root cause: the RTMX RCQ DMA never completes a load.** On the DE33 the compose+stream is
+> driven by the DE-top "RTMX" RCQ — a DMA command queue at `DE+0x8100` (`GLB_CTL 0x8100`,
+> `GLB_STS/status 0x8104`, `OUT_SIZE 0x8108`, `AUTO_CLK 0x810c`, `RCQ_CTL 0x8110`,
+> head-ptr `0x8114`). Note the mainline driver's `top_regs`/`SUN8I_MIXER_GLOBAL_*`/
+> `SUN55I_MIXER_RCQ_*` registers map onto this block, i.e. the port already drives the same
+> RTMX RCQ the vendor does. Evidence of the failure:
+> - The RCQ head array is correct (driver `dump_arms`): each block `dirty=1` with the right
+>   shadow data (OVL `0x1c1000` shadow ATTCTL=`0xff000403`; blender `0x281000` shadow
+>   `0101 / ff000000 / 02cf04ff`), correct `len` and `reg_offset`.
+> - Yet the live DE registers stay at reset (OVL reads `0xff000401`, blender `0`, VSU `0`) —
+>   the shadow is never copied in.
+> - RCQ status `0x8104` is **perpetually BUSY (bit4), never FINISHED (bit2)** — confirmed
+>   against the vendor's own `de_top_query_state_is_busy()` (`reg & 0x10`). Firing the CPU-IF
+>   `TRIGGER_START` does not unstick it.
+>
+> ⇒ The RTMX RCQ **accepts** a well-formed queue but the DMA load **never executes**, so no
+> block is applied and no frame is composited — a permanent blank, independent of register
+> values. This explains both driver paths: `use_rcq=Y` kicks the stuck RCQ (nothing applies);
+> `use_rcq=N` writes the registers by AHB but never runs an RCQ compose cycle (no output).
+>
+> **Ruled out as the cause of the stuck RCQ:** DE core clock / AHB-reset / MBUS clock (all
+> enabled, matching the vendor at `0x8000/0x8004/0x8008`); `ahb_read_mode`/"conflict mode"
+> (a no-op on sun55iw3); the RCQ head format (`len:24 | high_addr:8`, `dirty:1`, `reg_offset`
+> — matches the BSP `de_rcq_head`); the head `reg_offset` base and the shadow data-source
+> addresses; head-array even-alignment and zero-termination.
+>
+> **★ Where fresh eyes would help most:** why does the A523 (DE-v35x) RTMX RCQ DMA stay BUSY
+> and never FINISH given a correct head array and enabled clocks? Open candidates: an RTMX
+> enable/mode bit (vendor `RTMX_GLB_CTL 0x8100 = 0x01`; mainline writes `0xd1`, the extra bits
+> being FRAME_END/RCQ_FINISH/RCQ_ACCEPT IRQ enables); the memory attributes/placement required
+> for the RCQ head+data (must sit in the low DE-reachable CMA, ~`0x43000000`–`0x4b000000`); and
+> the per-frame RTMX "load" latch / frame-start that the BSP's `disp_al_manager_set_rcq_update()`
+> issues on the TCON vblank/TRI_FINISH IRQ in CPU-interface (8080) command mode. Input from the
+> A523 DE-v35x RCQ-port authors would be especially valuable.
+
+
 
 > **TL;DR (updated 2026-10-19)** — The blocker this document was originally written about
 > (*"the TCON is clocked and out of reset but every register reads zero, `CTL` writes don't stick,
