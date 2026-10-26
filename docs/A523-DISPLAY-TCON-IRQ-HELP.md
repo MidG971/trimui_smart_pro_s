@@ -95,6 +95,25 @@ counter), and DSI `blk_vblk` (a 4-byte vertical-blanking alignment pad). **Input
 command/CPU-interface DSI *transfer completion* (per-frame `TRI_FINISH`, FIFO backpressure, HS
 clock-lane duty) is where help is now most useful.**
 
+#### Dynamic instrumentation (2026-10-26): the transfer never completes, DSI FIFO is starved
+
+A read-only sampler (512 samples over ~200 ms with the pipeline active) pins the dynamic failure:
+
+- **`BASIC_CTL0.INST_ST` (bit0) = 1 in every sample** — the DSI instruction FSM runs *perpetually*
+  and never completes a transfer.
+- **`TCON GINT0.TRI_FINISH_INT` (bit11) never asserts**, and **DE `GLB_STS.FRAME_END` (bit0) never
+  asserts** — both completion signals are gated on the transfer finishing, which it never does.
+  `VBLANK_INT` does fire, and the DSI `curr_line` (`0x2e0`) sweeps the full 0..1308 and wraps, so
+  the TCON timing generator runs normally.
+- **DSI `debug_fifo` (`0x2f4`) reads `0xF0000000` (fill ≈ 0) vs stock `0xF0380000` (fill `0x38`≈56)**
+  — i.e. **our DSI pixel FIFO is empty/starved where the working stock keeps it fed.**
+
+So the timing runs but no pixel data reaches the DSI: the **DE→TCON→DSI FIFO feed** is the open
+fault (the DE is not delivering scanned pixels into the DSI FIFO), and/or the DSI FSM loop
+(`jump_cfg_num`/`inst_loop`) never terminates a frame. That — the pixel feed into the DSI FIFO,
+the TCON0 DRQ/FIFO path (`TCON0_DRQ 0x7c`, CPU-IF FIFO), and the FSM loop termination — is the
+specific next thing to chase.
+
 
 
 > **TL;DR (updated 2026-10-19)** — The blocker this document was originally written about
