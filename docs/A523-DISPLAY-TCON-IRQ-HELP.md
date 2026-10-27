@@ -141,6 +141,49 @@ isn't reaching the DE, the pipeline is configured but never produces a stream). 
 physical addresses (no IOMMU; it reaches only low DRAM `< ~0x4b000000`). That DE↔TCON scanout clock
 is the next thing to chase.
 
+### Update 2026-10-27: forcing a per-frame DE re-arm makes the DE complete frames (`FRAME_END`/RT-active now fire) — but the DE→TCON CPU-interface handoff still does not engage
+
+The 2026-10-26 conclusion was that the DE never clocks a pixel stream out, most likely because
+the command-mode DE is not being told to produce a frame (the DE↔TCON RT sync). That was tested
+directly: **force a fresh full DE reload every frame, in lockstep with the CPU-IF trigger.**
+
+Mechanism (a debug probe — *not* an upstream-bound change): a new optional `frame_update` op on
+`sunxi_engine_ops`, implemented in `sun55i_de.c` as `sun55i_de_frame_update()` — under `arm_lock`
+it marks every block dirty (`full_arms_left`) and runs `do_arm()`, i.e. a *real full datapath
+rewrite* and double-buffer re-latch (the deliberate opposite of a null RCQ kick, which an earlier
+`ahb_frame_kick` probe had shown does nothing). The TCON CPU-IF per-frame re-arm
+(`sun4i_tcon0_cpu_if_arm()`) calls it just before the trigger, gated by a `vblank_update` module
+param; the cadence is paced by `retrig_period_ms=18` from the hrtimer, with `cpu_trigger_start=1`
+asserting CPU-IF `TRIGGER_START` (bit1).
+
+Result on hardware (read-only sampler, 512 samples, pipeline active):
+
+- **DE `GLB_STS` (`0x5008104`) now reads `0x011`/`0x111` alternating** — `FRAME_END` (bit0) asserts
+  in *every* sample and **`RT-active` (bit8) now toggles**. Both were frozen at `0` across this
+  entire investigation; this is the **first time the DE completes frames.** (Caveat: with a forced
+  full reload every 18 ms, some of `FRAME_END`/BUSY is the apply cycle — but `RT-active` had never
+  set at all before, and does now.)
+- CPU-IF (`0x5502060`) `= 0x10010007` — `TRIGGER_START` set, confirmed in all 512 samples.
+- **DSI `debug_fifo` (`0x55082f4`) still reads `0xf0000000` (starved)** vs stock `0xf0380000` — the
+  pixel FIFO is **still empty**.
+- TCON CPU-IF `rd_flag` (bit22) **never asserts** across all 512 samples — the TCON never initiates
+  a read of the DE output.
+- **Visual change on the glass:** the fine flickering vertical-stripe pattern is **not new** — it
+  was already present and captured on video in an earlier session (2026-10-20). The one *delta* from
+  this experiment is that the panel is now **noticeably darker/blacker** than before (the grey field
+  dropped in luminance; the stripes remain). So the DE now completing frames shifts the panel's
+  output level, but still produces no coherent image.
+
+Interpretation: `vblank_update` cleared the exact metric this document had been stuck on
+(`FRAME_END`/`RT-active`), and **the blocker moved one stage downstream** — from *"the DE never
+completes a frame"* to *"the DE completes frames, but the DE→TCON CPU-interface read handshake
+(`rd_flag`) never engages, so the pixels never cross into the TCON→DSI FIFO."* The darker panel
+(no new structure, just a luminance drop) is consistent with that: the DE is cycling frames but the
+TCON is still not pulling them, so what reaches the DDIC changed level without becoming an image.
+The next thing to chase is that handshake specifically: the CPU-IF read-from-DE gating (DE-top
+async-bridge `0x5008004c`, the `de2tcon` routing, and whether the TCON CPU-IF is in the correct
+read-on-trigger submode) — a far narrower hunt than the whole DE output stage.
+
 
 
 > **TL;DR (updated 2026-10-19)** — The blocker this document was originally written about
