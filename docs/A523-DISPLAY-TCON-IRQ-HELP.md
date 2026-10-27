@@ -184,6 +184,53 @@ The next thing to chase is that handshake specifically: the CPU-IF read-from-DE 
 async-bridge `0x5008004c`, the `de2tcon` routing, and whether the TCON CPU-IF is in the correct
 read-on-trigger submode) — a far narrower hunt than the whole DE output stage.
 
+### Update 2026-10-27 (later): ★ AUTO-mode CPU-IF lights the panel — first coherent pixels on glass; the transfer now runs but won't lock (flicker)
+
+The "read-on-trigger submode" question above turned out to be the key. The TCON CPU-IF has an
+**AUTO / continuous-trigger** bit (`SUN4I_TCON0_CPU_IF_AUTO`, BIT17) that the driver never set — it
+ran the manual software trigger (`AUTO=0`). Setting it on HW (`CPU_IF 0x10010007 → 0x10030007`) is
+the missing consume-side piece:
+
+- The DE→TCON→DSI path went from **completely dead** (DSI `debug_fifo` frozen at `0xf0000000`, FSM
+  parked at instr `…2`) to **live**: the FIFO fills/drains, the DSI FSM runs the **HS pixel-transfer
+  instruction** (`0x00300003`, instr `…3`), `curr_line` sweeps, and the DE is slaved to the TCON's
+  reads. Pixels transfer for the first time.
+- **Pattern-generator proof (decisive):** feeding the TCON's internal **colour-bar** generator
+  (`TCON0_CTL.src_sel=1`) *through* the now-live transfer puts **faint colour bars on the glass**.
+  Since the source is the TCON, not the DE, this proves the **entire TCON→DSI→DDIC chain decodes
+  real pixel data end-to-end** — the link and the DDIC work. It also isolates the remaining fault to
+  the transfer path, independent of the DE.
+
+So the project's long-standing wall is down: **DE→TCON handshake ✔ (AUTO), TCON→DSI→DDIC decode ✔
+(bars). The display fundamentally works.**
+
+**What's left is that the transfer won't lock** — heavy flicker + fine rainbow-fringed vertical
+lines over the bars, not a stable image. Ruling out, on HW, with live register pokes (`poke_wr`)
+while watching the panel:
+
+- **Not CPU-IF block pacing.** Swept `start_delay` (CPU_TRI2) 5→1100 and `block_space` (CPU_TRI0)
+  0→1000: the flicker and the FIFO behaviour are **invariant** at every value.
+- **Not the pixel clock.** Swept `dclk` divider 1→8 (62→7 MHz): invariant, DSI instr unchanged. In
+  CPU-IF mode the dclk divider does not gate the transfer rate.
+- **Not DE content.** The flicker is identical with the TCON pattern generator (DE out of the loop).
+- The wide FIFO swing (`0x00`↔`~0x200`) that first looked like a pacing bug is a **red herring** —
+  a fast fill/drain cycle sampled at random phase; the transfer is working.
+
+**Leading remaining hypothesis — continuous-stream sync, not a per-frame write.** A "GRAM-hold" test
+(clear `TRI_EN`/`AUTO`/`TRIGGER_START` in `CPU_IF`) **did not stop the transfer**: the DSI kept
+streaming. So the stream is **not gated by the CPU-IF 8080 trigger** — it runs continuously,
+consistent with the panel driver declaring `MIPI_DSI_MODE_VIDEO` (a continuous video stream) while
+being physically driven through the TCON 8080 interface, with **no host-side tearing-effect (TE)
+sync** (no `te-gpios`, no TE-wait). A continuous/unteared stream to this DDIC is a strong candidate
+for the flicker. **Decisive next step:** boot the vendor firmware and capture its `CPU_IF`
+(AUTO or manual?), `CPU_TRI`/`DCLK`, DSI mode flags and clock set, and whether it uses TE — to
+replace the current guessing with exact targets.
+
+*Reproducibility: the AUTO bit is a one-line driver change (`cpu_if_auto` test param OR'ing BIT17
+into the CPU-IF arm) + a runtime toggle; the sweeps above are `devmem2`/`poke_wr` reads anyone can
+repeat on the live pipeline. Still no stable image — this is progress and a sharply narrowed target,
+not a finished display.*
+
 
 
 > **TL;DR (updated 2026-10-19)** — The blocker this document was originally written about
