@@ -33,11 +33,27 @@
 > dragged into the non-latching path by the file meant only to set the DE muxes. The per-frame
 > arm machinery is otherwise alive (`arm_at_target=Y`, beam-gated arms counting, `commits>0`).
 >
-> **⇒ Leading, config-only, reversible next step:** restore `use_rcq=1` (RCQ DMA + beam-gated
-> per-frame arm — the path the backend says latches on this silicon), re-test whether FRAME_END
-> asserts and first pixels appear, then layer the TE pacing (result 1) on top for frame-lock. No
-> rebuild required. If RCQ mode still shows no FRAME_END, the gate is the DE↔TCON output coupling
-> in command mode (the open question in the banner below), not the config-push path.
+> **⇒ RESULTS — both tested on HW the same evening:**
+> - **`use_rcq=1` restored (RCQ mode): a real fix, kept.** `GLB_STS` RCQ_ACCEPT (bit3) now sets —
+>   it never did under AHB — confirming RCQ is the config-push path the DE accepts, and that the
+>   `use_rcq=N` was a `modprobe.d` last-wins accident now corrected. **But not the image gate:**
+>   FRAME_END (bit0) still never asserts (OR of 24 samples = `0x118`), FIFO still `0xf000`, panel
+>   unchanged (light grey + flickering thin line).
+> - **CPU-IF per-frame FSM restart: root cause found, fixed, built, tested — did NOT unstick it.**
+>   The vendor restarts the DSI instruction FSM every frame with an explicit `inst_st = 0;
+>   inst_st = 1;` pulse (`dsi_start()`), but mainline's per-frame `cpu_if_retrigger` did only a bare
+>   `regmap_update_bits(INST_ST, INST_ST)`, which regmap **elides** when `INST_ST` already reads 1 —
+>   and it does, because the 8080 FSM parks and never self-clears (the init/LP command path works
+>   only because it self-clears on completion). Added an explicit `inst_abort()` (INST_ST→0) before
+>   `inst_commit()` (INST_ST→1) to force the edge, matching the BSP. On HW the FSM **still parks**
+>   (`dbg_inst` ~constant, `BASIC_CTL0` INST_ST=1, `CPU_IF` still `0x10010007` with `rd_flag` never
+>   asserting, no FRAME_END, panel unchanged). The re-pulse alone does not advance HSC→HSD. The fix
+>   is a genuine latent-bug correction and is kept.
+>
+> **⇒ Remaining gate (where it stands):** the DSI instruction FSM cannot complete the **HSC
+> (HS-clock entry) → HSD (HS-data)** step in the per-frame 8080 path — pointing at the D-PHY
+> HS-clock bring-up or the TCON↔DSI CPU-interface data handshake, not the config-push mode and not
+> the FSM-restart write (both now eliminated). Paused here.
 
 > ## ★★ 2026-10-26 CURRENT STATE — the DE accepts config but never completes a frame
 > *(This supersedes the "it decodes / transfer starves" claims in the TL;DR and §5g below,
