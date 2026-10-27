@@ -202,7 +202,9 @@ the missing consume-side piece:
   the transfer path, independent of the DE.
 
 So the project's long-standing wall is down: **DE→TCON handshake ✔ (AUTO), TCON→DSI→DDIC decode ✔
-(bars). The display fundamentally works.**
+(bars). The display fundamentally works.** *(Correction, 2026-10-27 evening: the stock oracle shows
+AUTO is a lucky workaround — the vendor uses the plain manual trigger, frame-locked to the panel's
+TE. See the evening update below.)*
 
 **What's left is that the transfer won't lock** — heavy flicker + fine rainbow-fringed vertical
 lines over the bars, not a stable image. Ruling out, on HW, with live register pokes (`poke_wr`)
@@ -230,6 +232,53 @@ replace the current guessing with exact targets.
 into the CPU-IF arm) + a runtime toggle; the sweeps above are `devmem2`/`poke_wr` reads anyone can
 repeat on the live pipeline. Still no stable image — this is progress and a sharply narrowed target,
 not a finished display.*
+
+### Update 2026-10-27 (evening): ★★ Stock oracle captured on hardware — AUTO was a lucky workaround; stock is MANUAL trigger, frame-locked to the panel's TE
+
+The decisive step above was taken: the device was booted into the **vendor firmware** with the panel
+lit, and every display register read live (over adb, via the BSP `/sys/class/sunxi_dump` reader and
+busybox `devmem`). It **overturns the AUTO hypothesis**.
+
+**Stock never sets AUTO.** The stock `CPU_IF` (0x5502060) reads `0x10010005` across every sample —
+`MODE_DSI | TRI_FIFO_FLUSH | TRI_FIFO_EN | TRI_EN`, with **bit17 (AUTO) clear** and no persistent
+`TRIGGER_START`; only bit22 (`rd_flag`) toggles as the TCON reads the DE each frame. The AUTO bit we
+found earlier *works* only because it happens to make the TCON re-read continuously — it is **not**
+what the vendor does. Stock runs the plain **manual-trigger 8080**, and paces it off the panel's
+**tearing-effect (TE)** signal:
+
+- The panel's init sequence **already ends with DCS `0x35` (SET_TEAR_ON)** — the blob tail
+  `05 14 01 35`, which `trimui_panel_replay()` emits as a one-byte DCS write. **The DDIC's TE output
+  is already enabled by our own driver**; the gap was never the panel.
+- There is no `te-gpio`; TE returns **over the DSI link** and drives the `5508000.dsi1` interrupt at
+  a measured **62.7/s — exactly one per frame** (62.7 Hz). Stock's **DSI interrupt-enable
+  `0x5508200 = 0x3`** arms that per-frame source; the vendor ISR re-triggers each frame in sync.
+- Our own pipeline already *streams* pixels (the AUTO test: FIFO fills ~`0xf038`, `curr_line`
+  sweeps). The one thing missing is **starting each frame's block transfer on the TE** instead of
+  free-running — which is exactly why a free-running (AUTO or hrtimer) stream tears/flickers.
+
+**Exact stock targets** (720×1280, ~62.7 Hz, panel lit):
+
+| Register | Stock value | vs. our path |
+| --- | --- | --- |
+| `CPU_IF` 0x5502060 | `0x10010005` (manual, **no AUTO**) | we forced AUTO `0x10030007` |
+| `CPU_TRI0` 0x5502160 | `0x005402cf` (space 84, size 720) | ✔ already matched |
+| `CPU_TRI1` 0x5502164 | `0x02fb04ff` (block_num 1280, **counter 763**) | ✗ we had counter `0` |
+| `CPU_TRI2` 0x5502168 | `0x013b000a` (start_delay 315, trans 10) | ✔ matched — **315 vindicated** |
+| `DCLK` 0x5502044 | `0xf0000001` (gate f, **div 1**) | ✔ |
+| timing (BASIC1/2/3) | HT 844, VT 1309, hsw/vsw 4 | ✔ |
+| `GLB_STS` 0x5008104 | cycles `0x119/19/09/109` (**FRAME_END always set**) | ours stuck `0x18` |
+| D-PHY ANA0/ANA4 | `0x77` / `0x84363538` | ✔ already stock-exact |
+
+So the remaining work is **host-side TE pacing**, not panel init, not pixel clock, not CPU-IF block
+pacing (all ruled out on HW earlier). The fix: drive the CPU-IF `TRIGGER_START` off the `dsi1`
+per-frame (TE) interrupt in plain manual mode (`CPU_IF = 0x10010005`), set `CPU_TRI1` counter to the
+observed `763`, and retire the free-running hrtimer/AUTO. A draft of that patch (with a cheap
+register-only sanity step first) is staged against the live tree.
+
+*Reproducibility: all values above are live reads from the shipping vendor firmware
+(Longan 5.15.147) via `/sys/class/sunxi_dump` + `devmem` — anyone can repeat them with the panel lit.
+The panel's `0x35` is already in `panel-trimui-smart-pro-s.c`'s init blob; the TE-pacing change is a
+DSI-interrupt handler plus the three register values in this table.*
 
 
 
