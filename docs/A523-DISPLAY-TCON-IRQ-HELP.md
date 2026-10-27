@@ -1,8 +1,43 @@
 <!-- SPDX-License-Identifier: (GPL-2.0-only OR MIT) -->
 # A523 (Trimui Smart Pro S) mainline MIPI-DSI — DE/TCON bring-up (help / insights welcome)
 
-**Date:** 2026-10-19 (updated 2026-10-26) · **Kernel:** mainline **v7.3-rc7** · **SoC:** Allwinner **A523** (sun55iw3) ·
+**Date:** 2026-10-19 (updated 2026-10-27) · **Kernel:** mainline **v7.3-rc7** · **SoC:** Allwinner **A523** (sun55iw3) ·
 **Repo:** https://github.com/MidG971/trimui_smart_pro_s
+
+> ## ★★ 2026-10-27 (evening) CURRENT STATE — the DE is wedged in the one mode the driver calls non-functional ("AHB never latches"); per-frame pacing is validated but not the gate
+> *(This supersedes the 2026-10-26 banner below. Two read-only/on-HW results today; both reproducible.)*
+>
+> **1. The DE→TCON pixel gap is NOT per-frame trigger timing.** A test patch that paces the
+> 8080 CPU-interface trigger from the DSI's per-frame `VIDEO_VBLK` interrupt (`dsi_gint0` bit2 —
+> stock's mechanism; our panel already arms TE via DCS `0x35` SET_TEAR_ON) was built and run on
+> hardware. The interrupt fires and the DSI scanout sweeps (the `dsi` IRQ ticks, `curr_line`
+> `0x55082e0` advances a full frame) — but `GLB_STS` FRAME_END still never asserts and the DSI
+> transmit FIFO (`0x55082f4`) stays starved (`0xf000…`). Pacing the *consumer* (TCON) is
+> necessary but not sufficient while the *producer* (DE) completes no frame; the panel was
+> unchanged. **Per-frame TE pacing is validated as a mechanism and set aside as the gate.**
+>
+> **2. Every static DE register already matches stock — yet the live kernel runs the one DE
+> datapath mode the driver itself documents as non-functional.** A read-only sweep of the DE-top
+> (base `0x5000000`; offsets per the vendor `de_top.c`): `+0x804c` ASYNC_BRIDGE = `0x0` ✓ (the
+> A523 `ic_ver>=2` value — the async-bridge handshake suspect is cleared), `+0x8050` BUF_DEPTH =
+> `0x6000` ✓, `+0x810c` AUTO_CLK = `0x1` ✓, `+0x8108` OUT_SIZE = `0x02cf04ff` ✓, `+0x8100`
+> GLB_CTL = `0xd1` = RTMX-enable(b0) + the three IRQ-enables (FRAME_END b4 / RCQ_FINISH b6 /
+> RCQ_ACCEPT b7) ✓, RCQ head programmed (`+0x8114`). The config is stock-faithful. But the
+> backend's own per-arm trace prints **`use_rcq=0 kicked=0`** — the datapath is pushed by **AHB
+> memcpy**, and the backend comment is explicit: *"RCQ+arm_at_target latches on HW (AHB never
+> latches)."* `GLB_STS` just toggles BUSY(b4)↔RT-active(b8) and never reaches RCQ_ACCEPT/FRAME_END.
+>
+> **Why AHB mode is active — a config accident, not a decision.** Two `modprobe.d` files carry
+> `options sun8i_mixer`; `modprobe` concatenates them **last-wins**, and the later DE-mux file
+> carries a stray `use_rcq=N` that silently overrides the intended `use_rcq=1`. The whole DE was
+> dragged into the non-latching path by the file meant only to set the DE muxes. The per-frame
+> arm machinery is otherwise alive (`arm_at_target=Y`, beam-gated arms counting, `commits>0`).
+>
+> **⇒ Leading, config-only, reversible next step:** restore `use_rcq=1` (RCQ DMA + beam-gated
+> per-frame arm — the path the backend says latches on this silicon), re-test whether FRAME_END
+> asserts and first pixels appear, then layer the TE pacing (result 1) on top for frame-lock. No
+> rebuild required. If RCQ mode still shows no FRAME_END, the gate is the DE↔TCON output coupling
+> in command mode (the open question in the banner below), not the config-push path.
 
 > ## ★★ 2026-10-26 CURRENT STATE — the DE accepts config but never completes a frame
 > *(This supersedes the "it decodes / transfer starves" claims in the TL;DR and §5g below,
