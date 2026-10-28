@@ -7,7 +7,24 @@ Live status of the MIPI-DSI display bring-up for the Trimui Smart Pro S (A523 / 
 Background and the decoded panel spec are in [`DISPLAY-NOTES.md`](DISPLAY-NOTES.md);
 this file tracks the *driver port* itself.
 
-## ★★★ 2026-09 — CURRENT: the panel shows a full-screen image; colour (YUV) + refresh robustness are the open items
+## ★★★★ 2026-10-28 — CURRENT: the "full-screen image" below was later shown to be backlight-only; the DE never completes a frame
+
+Hardware re-testing after the 2026-09 status showed the panel is **not** displaying a real image —
+the earlier "full-screen image" was backlight-only / unlocked mush. Bring-up is otherwise complete
+(panel reset polarity fixed, DCS init ACKed, D-PHY PLL locked, TCON timing generator running, DSI
+FSM reaching HS-data), but the **DE never clocks a frame out to the TCON**: DE `GLB_STS.FRAME_END`
+never asserts, the TCON's 8080 `CPU_IF.rd_flag` never asserts, and the DSI transmit FIFO starves.
+Every driver-controllable register now matches the same-board stock capture, and passive (register /
+monitor) localization is exhausted — on this DE the RT mixer is a pure TCON-slave, so "DE can't
+produce" and "DE isn't pulled" are the same event and cannot be told apart by reading registers.
+
+The focused problem statement — full register evidence (mainline vs stock), everything ruled out, the
+split-brain, and the open questions for the DE-v35x RCQ/RT backend — is in
+[`A523-DE33-RT-HANDOFF-QUESTION.md`](A523-DE33-RT-HANDOFF-QUESTION.md). The remaining gap is the DE↔TCON
+real-time frame-start / pull handshake in command/8080 mode (and a likely DSI video-vs-command-mode
+model mismatch), which is below the level a register diff can resolve.
+
+## 2026-09 (superseded by the 2026-10-28 note above) — earlier claim: full-screen image; colour (YUV) + refresh robustness
 
 Since the 2026-08-10 status below (which had the DE33 mixer as the last blocker), the mixer
 scanout was solved and the panel now displays a **full-screen image on hardware**. Three fixes lit
