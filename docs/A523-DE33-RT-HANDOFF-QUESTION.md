@@ -2,7 +2,9 @@
 
 **Audience:** linux-sunxi, and anyone familiar with the A523/T527 DE-v35x (de352) RCQ / real-time (RT) mixer backend and the `sun55i-a523` TCON-LCD → DSI command-mode path.
 
-**Ask:** every driver-controllable register now matches the vendor's *working* firmware on the **same board**, yet the DE never clocks a frame out to the TCON (`FRAME_END` never asserts, the TCON never asserts `rd_flag`, the DSI FIFO starves). We believe the remaining gap is in the DE↔TCON **real-time frame-start / pull handshake** (and/or a DSI video-vs-command-mode model mismatch), which is below the level a register diff can resolve. Pointers welcome.
+**Ask:** every driver-controllable register now matches the vendor's *working* firmware on the **same board**, yet the DE never clocks a frame out to the TCON (`FRAME_END` never asserts, the TCON never asserts `rd_flag`, the DSI FIFO starves). We believe the remaining gap is in the DE↔TCON **real-time frame-start / pull handshake** (we have since ruled out a DSI video-vs-command-mode mismatch — see §4), which is below the level a register diff can resolve. Pointers welcome.
+
+*Updated 2026-10-30: cross-checked the command-mode trigger sequence against the vendor BSP — added the §4 bullets and sharpened Q3 (the DSI video-vs-command angle is ruled out; the remaining divergence is the TCON0 counter-IRQ pacing).*
 
 ---
 
@@ -61,6 +63,8 @@ FSM parked at instruction 3 = **HSD** (HS data), `dbg_inst 0x55082f0=0x00300002`
 - **Not the blender/content.** With BLD applied (above), `rd_flag`/`FRAME_END` are still 0 — identical to the null-blender state.
 - **Not the RCQ enablement sequence.** Vendor `de_rtmx_start()` on sun55iw3 = DE core clk + `de_top_set_ahb_read_mode(1)` (a **no-op** on sun55iw3; conflict-mode only compiles for sun60iw2) + chn-mux + `setup_rcq` head pointer. Our head pointer `0x5008114`, high `0x5008118`, length `0x500811c=0x160`, and head-struct encoding all match the vendor; `de_top_set_clk_gating` is also a no-op on sun55iw3. No RCQ-specific clock/reset exists that we omit.
 - **Not a malformed RCQ head.** All 22 heads read valid from DRAM; we additionally fixed a zero-length dirty `DCSC` head (vendor never emits one) — `RCQ_FINISH` still never fires.
+- **Not the DE core bring-up order.** We match the vendor sequence — core AHB-reset release (`0x5008000`) → module clock (`0x5008004`) → MBUS clock (`0x5008008`); the historic mainline order (reverse) makes no difference.
+- **Not the DSI mode, jump sequence, per-frame re-kick, or trigger order.** The DSI `BASIC_CTL`/`CTL0`/`CTL1` (`0x0`/`0x00030001`/`0x15`, VIDEO_MODE=1) match stock exactly — stock *also* runs the DSI video-mode FSM under the 8080 trigger, so this is **not** a video-vs-command mismatch. Cross-checked against the vendor BSP (`lowlevel_v35x`): our DSI instruction jump table (`HSC→HSD`), the per-frame `INST_ST` 0→1 re-pulse, and the DSI-before-TCON trigger order all match the vendor (`dsi_tri_start` = `dsi_start(DSI_START_HSTX)`, then `tcon0_tri_start`). The sole divergence is IRQ pacing — see Q3.
 
 ## 5. The split-brain (the crux)
 
@@ -73,7 +77,7 @@ Neither path produces *applied datapath + a completed frame* in the same frame. 
 
 1. On the A523/T527 DE-v35x in **command/8080 (CPU-IF)** mode, what makes the DE↔TCON RT handshake actually *start* a frame — i.e. what causes the TCON's `rd_flag` to assert and the DE to clock a frame out — beyond the registers above? Is there an RT frame-start / sync-source wire or enable (TCON→DE) that the mainline path does not set?
 2. What is `RCQ_FINISH` (GLB_STS bit2) gated on? We see `RCQ_ACCEPT` but never `FINISH`, with a valid head list and correct pool placement (`@0x44020000`, within DE DMA reach). Is `FINISH` coupled to frame completion (so it cannot fire until the TCON pulls a frame)?
-3. This panel is command-mode (stock ends init with DCS `0x35 SET_TEAR_ON` and is TE-paced, driving the `dsi1` IRQ at 1/frame). Mainline currently runs the DSI as `MIPI_DSI_MODE_VIDEO` while the TCON is in 8080 command-trigger mode. **Is that video-vs-command mismatch the root cause** — must the DSI be a genuine command-mode device, TE-paced, for the TCON pull to engage?
+3. The vendor paces command mode off the **TCON0 counter IRQ** (`LCD_IRQ_TCON0_CNTR`, enabled in `tcon0_open()` on the command-mode DSI path); the per-frame `dsi_tri_start`/`tcon0_tri_start` fire from it. **That interrupt never fires for us** although the TCON timing generator runs (`current_line` sweeps), so we drive the trigger from an hrtimer instead. What enables/conditions that counter IRQ, and is the DE→TCON frame-start pull gated on it? (The DSI is *not* the mismatch: `BASIC_CTL1`=`0x15`/VIDEO_MODE=1 matches stock, which also runs the DSI video-mode FSM under the 8080 trigger — the panel ends init with DCS `0x35 SET_TEAR_ON` and is TE-paced at ~1 `dsi1` IRQ/frame in both.)
 
 ## 7. Reproduce / environment
 
