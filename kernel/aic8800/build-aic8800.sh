@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Midgy BALON
 #
 # Build the AIC8800 WiFi + Bluetooth kernel modules for the Trimui Smart Pro S
-# against a mainline kernel tree (tested: v7.2-rc1, v7.3-rc7). Fetches
+# against a mainline kernel tree (tested: v7.2-rc1, v7.3-rc7, v7.4-rc1). Fetches
 # warpme/minimyth2's AIC8800 SDIO backport (pinned), applies our small per-release
 # deltas (v7.1->v7.2, then v7.2->v7.3 for the cfg80211 cookie-by-value API), and
 # builds the driver OUT-OF-TREE (make M=):
@@ -75,6 +75,14 @@ patch -p1 <"$HERE/aic8800-warpme-v7.2.patch"
 if [ "$KNUM" -ge 703 ]; then
 	echo "== applying Trimui v7.3 delta (aic8800-warpme-v7.3.patch) =="
 	patch -p1 <"$HERE/aic8800-warpme-v7.3.patch"
+fi
+
+# v7.4 cfg80211 refactor: the key callbacks (add_key/get_key/del_key) changed
+# their 5th arg `bool pairwise` -> `enum nl80211_key_type type`. Version-guarded
+# (no effect < 7.4), cumulative on top of v7.3. Bump when the next rc moves it.
+if [ "$KNUM" -ge 704 ]; then
+	echo "== applying Trimui v7.4 delta (aic8800-warpme-v7.4.patch) =="
+	patch -p1 <"$HERE/aic8800-warpme-v7.4.patch"
 fi
 
 echo "== building modules (make M=) against $KSRC =="

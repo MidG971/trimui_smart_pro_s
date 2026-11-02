@@ -1,0 +1,69 @@
+--- a/aic8800_fdrv/rwnx_main.c
++++ b/aic8800_fdrv/rwnx_main.c
+@@ -2257,10 +2257,20 @@
+ #if (LINUX_VERSION_CODE >= HIGH_KERNEL_VERSION2)
+ 																	 int link_id,
+ #endif
+-									 u8 key_index, bool pairwise, const u8 *mac_addr,
++									 u8 key_index,
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 4, 0))
++					 enum nl80211_key_type type,
++#else
++					 bool pairwise,
++#endif
++					 const u8 *mac_addr,
+ 									 struct key_params *params)
+ 
+ {
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 4, 0))
++	bool pairwise = (type == NL80211_KEYTYPE_PAIRWISE);
++#endif
++
+ 	struct rwnx_hw *rwnx_hw = wiphy_priv(wiphy);
+ 	struct rwnx_vif *vif = netdev_priv(wdev->netdev);
+ 	int i, error = 0;
+@@ -2372,7 +2382,13 @@
+ #if (LINUX_VERSION_CODE >= HIGH_KERNEL_VERSION2)
+                                                                  int link_id,
+ #endif
+-								 u8 key_index, bool pairwise, const u8 *mac_addr,
++								 u8 key_index,
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 4, 0))
++				 enum nl80211_key_type type,
++#else
++				 bool pairwise,
++#endif
++				 const u8 *mac_addr,
+ 								 void *cookie,
+ 								 void (*callback)(void *cookie, struct key_params*))
+ {
+@@ -2391,7 +2407,13 @@
+ #if (LINUX_VERSION_CODE >= HIGH_KERNEL_VERSION2)
+                                                                  int link_id,
+ #endif
+-								 u8 key_index, bool pairwise, const u8 *mac_addr)
++								 u8 key_index,
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 4, 0))
++				 enum nl80211_key_type type,
++#else
++				 bool pairwise,
++#endif
++				 const u8 *mac_addr)
+ {
+ 	struct net_device *netdev = wdev->netdev;
+ 	struct rwnx_hw *rwnx_hw = wiphy_priv(wiphy);
+@@ -2537,7 +2559,13 @@
+ #if (LINUX_VERSION_CODE >= HIGH_KERNEL_VERSION2)
+                                 0,
+ #endif
+-				sme->key_idx, false, NULL, &key_params);
++				sme->key_idx,
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 4, 0))
++				NL80211_KEYTYPE_GROUP,
++#else
++				false,
++#endif
++				NULL, &key_params);
+ 	}
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) || defined(CONFIG_WPA3_FOR_OLD_KERNEL)
+ 	else if ((sme->auth_type == NL80211_AUTHTYPE_SAE) &&

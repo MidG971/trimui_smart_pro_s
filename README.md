@@ -40,18 +40,21 @@ GPU** (Panfrost), the RTC, and — the latest — **on-board WiFi** (AIC8800D80 
 device reachable **headless over Tailscale**.
 
 **Kernel base — tracking the latest rc.** The port is maintained against mainline's newest release
-candidate, and the device dual-boots **v7.2-rc3** (the long-proven baseline) and **v7.3-rc7** via
+candidate, and the device now boots **v7.4-rc1** (current), with **v7.3-rc7** and **v7.2-rc3** kept as fallbacks via
 `extlinux`. Of the patches we had tracked for upstreaming, two genuinely merged and are dropped on 7.3
 — the **pinctrl voltage-withstand** fix and the **AXP20x power-off/restart**. The **A523 CPU-CCU
 (cpufreq)**, **THS thermal**, and **audio codec** series were *posted* upstream but are **not in
-v7.3-rc7 yet**, so we still carry them (an earlier note here wrongly called them merged). The 7.3
-cfg80211 cookie-by-value API change is handled by `kernel/aic8800/aic8800-warpme-v7.3.patch`.
+mainline yet**, so we still carry them. The AIC8800 Wi-Fi driver needs a small per-rc cfg80211 fixup:
+the 7.3 cookie-by-value change (`kernel/aic8800/aic8800-warpme-v7.3.patch`) and, for 7.4, the
+key-callback `bool pairwise` -> `enum nl80211_key_type` change (`kernel/aic8800/aic8800-warpme-v7.4.patch`).
 
-**v7.3-rc7 on hardware (validated):** boots, Wi-Fi/Tailscale, eMMC/SD, and **thermals** (5 zones +
+**v7.4-rc1 on hardware (validated 2026-11-02):** boots clean (no oops), Wi-Fi/Tailscale, **Bluetooth**, the **gamepad**, eMMC/SD, and **thermals** (5 zones +
 temperature-controlled `pwm-fan`, via the re-applied THS patches `0021-0023` + `dts/staging/trimui-thermal.dtsi`)
-all work on the device. The **display** engine binds and shows an image once the mixer gets a low
-`reserved-memory` CMA pool (the DE DMA only reaches `0x4b000000`); per-frame updates (`vblank`/`flip_done`)
-are still being brought up. Currently **off** on the 7.3 build pending a patch rebase: **cpufreq** (CPU-CCU)
+all work on the device, carried forward from the equally-validated v7.3-rc7 by a conflict-free rebase.
+The **display** pipeline binds (panel/TCON/DSI/mixer; `card1-DSI-1 connected`, `/dev/fb0`) and the DDIC
+runs cool, but does **not** yet show a usable image: the DE never completes a frame to the TCON in
+command/8080 mode (see `docs/DISPLAY-PORT-STATUS.md` + `docs/A523-DE33-RT-HANDOFF-QUESTION.md`).
+Currently **off** pending a patch rebase: **cpufreq** (CPU-CCU)
 and **audio** (codec). See `CONTRIBUTING.md` on reproducibility — on-device results override build-only claims.
 
 **What cracked the months-long boot blocker** — all three were SPL-stage config bugs, all
