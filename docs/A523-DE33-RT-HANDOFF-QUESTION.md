@@ -4,7 +4,7 @@
 
 **Ask:** every driver-controllable register now matches the vendor's *working* firmware on the **same board**, yet the DE never clocks a frame out to the TCON (`FRAME_END` never asserts, the TCON never asserts `rd_flag`, the DSI FIFO starves). We believe the remaining gap is in the DE↔TCON **real-time frame-start / pull handshake** (we have since ruled out a DSI video-vs-command-mode mismatch — see §4), which is below the level a register diff can resolve. Pointers welcome.
 
-*Updated 2026-10-30: cross-checked the command-mode trigger sequence against the vendor BSP — added the §4 bullets and sharpened Q3 (the DSI video-vs-command angle is ruled out; the remaining divergence is the TCON0 counter-IRQ pacing).*
+*Updated 2026-11-02: re-verified live on **v7.4-rc1** in the stock-matching 8080 config (`CPU_IF=0x10010007`, `CPU_TRI3=0`, `TRIGGER_START` held) — `rd_flag` never asserts across 1024 samples; the TCON0 counter IRQ is now **ruled out** (its `GINT0` bit10 does fire, yet `rd_flag` still never does). The question narrows to Q1/Q3. Earlier 2026-10-30: cross-checked the command-mode trigger sequence against the vendor BSP — added the §4 bullets and sharpened Q3 (the DSI video-vs-command angle is ruled out; the remaining divergence is the TCON0 counter-IRQ pacing).*
 
 ---
 
@@ -35,7 +35,7 @@ Stock values were captured by booting the vendor firmware on the **same unit** a
 | `0x5502160/64/68` CPU_TRI0/1/2 | block 720/1280, start_delay 315 | match | match ✓ |
 | `0x55020fc` DEBUG | current_line | sweeps | **sweeps 282→587→910 → timing generator IS running**, no underflow in manual mode |
 
-`CPU_IF.rd_flag` (bit22) and `wr_flag` (bit23): **stock toggles each frame; mainline = 0 across 512 samples @400µs**, even with `TRIGGER_START` (bit1) held set 512/512. The TCON is triggered but never begins the transfer.
+`CPU_IF.rd_flag` (bit22) and `wr_flag` (bit23): **stock toggles each frame; mainline = 0 across 512 samples @400µs**, even with `TRIGGER_START` (bit1) held set 512/512. The TCON is triggered but never begins the transfer. Re-confirmed live on **v7.4-rc1** in the stock-matching 8080 config (`CPU_IF=0x10010007`, `CPU_TRI3=0`, `TRIGGER_START` held): `rd_flag = 0` across a further 1024 samples.
 
 ### DE-top `@0x5008000` — routing/clocks match; FRAME_END never
 
@@ -59,12 +59,12 @@ FSM parked at instruction 3 = **HSD** (HS data), `dbg_inst 0x55082f0=0x00300002`
 
 - **Not the trigger value / mode.** `CPU_IF` matches stock byte-for-byte (manual trigger, no AUTO). AUTO (bit17) makes the FIFO fill but only free-runs a flickery non-locked frame; stock does not use it.
 - **Not a missing software `TRIGGER_START`.** Asserting it (self-clearing pulse) sets bit1 but it never self-clears and `rd_flag` never asserts.
-- **Not the per-frame trigger source.** The vendor `tcon0_cfg_mode_tri()` programs `CPU_TRI3.tri_int_mode` (internal counter / TE). We added it (`0x16c`, internal-counter mode, counter from `htotal*vtotal/4`); the register takes the value but behaviour is unchanged and it generates no interrupts in our driver.
+- **Not `CPU_TRI3` / the TCON0 counter IRQ.** The vendor `tcon0_cfg_mode_tri()` programs `CPU_TRI3.tri_int_mode` (internal counter / TE); we added it (`0x16c`, internal-counter mode). On live v7.4-rc1 the counter *does* fire — `GINT0` bit10 (`TRI_COUNTER_INT`) asserts — yet `rd_flag` still never does. Stock runs with `CPU_TRI3 = 0` (counter off); poking ours to 0 to match is identical — `rd_flag` still never asserts across 256 samples. So the counter IRQ can fire and is **not** the missing piece.
 - **Not the blender/content.** With BLD applied (above), `rd_flag`/`FRAME_END` are still 0 — identical to the null-blender state.
 - **Not the RCQ enablement sequence.** Vendor `de_rtmx_start()` on sun55iw3 = DE core clk + `de_top_set_ahb_read_mode(1)` (a **no-op** on sun55iw3; conflict-mode only compiles for sun60iw2) + chn-mux + `setup_rcq` head pointer. Our head pointer `0x5008114`, high `0x5008118`, length `0x500811c=0x160`, and head-struct encoding all match the vendor; `de_top_set_clk_gating` is also a no-op on sun55iw3. No RCQ-specific clock/reset exists that we omit.
 - **Not a malformed RCQ head.** All 22 heads read valid from DRAM; we additionally fixed a zero-length dirty `DCSC` head (vendor never emits one) — `RCQ_FINISH` still never fires.
 - **Not the DE core bring-up order.** We match the vendor sequence — core AHB-reset release (`0x5008000`) → module clock (`0x5008004`) → MBUS clock (`0x5008008`); the historic mainline order (reverse) makes no difference.
-- **Not the DSI mode, jump sequence, per-frame re-kick, or trigger order.** The DSI `BASIC_CTL`/`CTL0`/`CTL1` (`0x0`/`0x00030001`/`0x15`, VIDEO_MODE=1) match stock exactly — stock *also* runs the DSI video-mode FSM under the 8080 trigger, so this is **not** a video-vs-command mismatch. Cross-checked against the vendor BSP (`lowlevel_v35x`): our DSI instruction jump table (`HSC→HSD`), the per-frame `INST_ST` 0→1 re-pulse, and the DSI-before-TCON trigger order all match the vendor (`dsi_tri_start` = `dsi_start(DSI_START_HSTX)`, then `tcon0_tri_start`). The sole divergence is IRQ pacing — see Q3.
+- **Not the DSI mode, jump sequence, per-frame re-kick, or trigger order.** The DSI `BASIC_CTL`/`CTL0`/`CTL1` (`0x0`/`0x00030001`/`0x15`, VIDEO_MODE=1) match stock exactly — stock *also* runs the DSI video-mode FSM under the 8080 trigger, so this is **not** a video-vs-command mismatch. Cross-checked against the vendor BSP (`lowlevel_v35x`): our DSI instruction jump table (`HSC→HSD`), the per-frame `INST_ST` 0→1 re-pulse, and the DSI-before-TCON trigger order all match the vendor (`dsi_tri_start` = `dsi_start(DSI_START_HSTX)`, then `tcon0_tri_start`). The counter-IRQ angle is ruled out — see Q3.
 
 ## 5. The split-brain (the crux)
 
@@ -77,11 +77,11 @@ Neither path produces *applied datapath + a completed frame* in the same frame. 
 
 1. On the A523/T527 DE-v35x in **command/8080 (CPU-IF)** mode, what makes the DE↔TCON RT handshake actually *start* a frame — i.e. what causes the TCON's `rd_flag` to assert and the DE to clock a frame out — beyond the registers above? Is there an RT frame-start / sync-source wire or enable (TCON→DE) that the mainline path does not set?
 2. What is `RCQ_FINISH` (GLB_STS bit2) gated on? We see `RCQ_ACCEPT` but never `FINISH`, with a valid head list and correct pool placement (`@0x44020000`, within DE DMA reach). Is `FINISH` coupled to frame completion (so it cannot fire until the TCON pulls a frame)?
-3. The vendor paces command mode off the **TCON0 counter IRQ** (`LCD_IRQ_TCON0_CNTR`, enabled in `tcon0_open()` on the command-mode DSI path); the per-frame `dsi_tri_start`/`tcon0_tri_start` fire from it. **That interrupt never fires for us** although the TCON timing generator runs (`current_line` sweeps), so we drive the trigger from an hrtimer instead. What enables/conditions that counter IRQ, and is the DE→TCON frame-start pull gated on it? (The DSI is *not* the mismatch: `BASIC_CTL1`=`0x15`/VIDEO_MODE=1 matches stock, which also runs the DSI video-mode FSM under the 8080 trigger — the panel ends init with DCS `0x35 SET_TEAR_ON` and is TE-paced at ~1 `dsi1` IRQ/frame in both.)
+3. The vendor paces command mode off the **TCON0 counter IRQ** (`LCD_IRQ_TCON0_CNTR`, enabled in `tcon0_open()` on the command-mode DSI path); the per-frame `dsi_tri_start`/`tcon0_tri_start` fire from it. On live v7.4-rc1 with the counter enabled, that interrupt (`GINT0` bit10) **does** fire — yet `rd_flag` still never asserts, and the completion interrupts `TRI_FINISH` (bit11) and `FSYNC` (bit9), which stock raises every frame, never do. So the counter IRQ is **not** the gate. What actually makes the 8080 transfer run to completion — raising `rd_flag`, then `TRI_FINISH`/`FSYNC` — when the trigger config already byte-matches stock (including `CPU_TRI3 = 0`)? (The DSI is *not* the mismatch: `BASIC_CTL1`=`0x15`/VIDEO_MODE=1 matches stock, which also runs the DSI video-mode FSM under the 8080 trigger — the panel ends init with DCS `0x35 SET_TEAR_ON` and is TE-paced at ~1 `dsi1` IRQ/frame in both.)
 
 ## 7. Reproduce / environment
 
-- Mainline tree based on **v7.3-rc7**; DE33 driver `sun55i_de`, A523 8080 path in `sun4i_tcon`.
+- Mainline tree **v7.4-rc1** (behaviour identical on v7.3-rc7); DE33 driver `sun55i_de`, A523 8080 path in `sun4i_tcon`. Everything in §3 was re-confirmed live on v7.4-rc1 in the stock-matching 8080 config.
 - Same-board stock capture: vendor Longan 5.15, panel lit, MMIO read live. Full dump: `docs/STOCK-DE-DISPLAY-FULLDUMP-2026-10-22.txt`.
 - Everything in §3 is reproducible read-only on the running board; the `use_rcq` and trigger knobs are module parameters.
 
