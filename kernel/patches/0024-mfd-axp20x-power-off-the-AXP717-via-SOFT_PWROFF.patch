@@ -4,15 +4,20 @@ Date: Sat, 18 Jul 2026 00:00:00 +0000
 Subject: [PATCH] mfd: axp20x: power off the AXP717 via SOFT_PWROFF (0x27)
 
 The generic axp20x_power_off() path writes AXP20X_OFF_CTRL (0x32) for every
-variant without a dedicated case. The AXP717/AXP2202 register map has no 0x32
-at all (it jumps from 0x30 I2C_CFG straight to 0x3e BUS_MODE_SEL), so the write
-is silently dropped and shutdown falls through to the PSCI SYSTEM_OFF handler,
+variant without a dedicated case. The AXP717/AXP2202 register map has no
+ 0x32
+at all (it jumps from 0x30 I2C_CFG straight to 0x3e BUS_MODE_SEL), so the
+ write
+is silently dropped and shutdown falls through to the PSCI SYSTEM_OFF
+ handler,
 which hangs in the T527 vendor ATF -- the device never powers off.
 
-Its real soft power-off is SOFT_PWROFF (0x27) bit 0, per the vendor BSP header
+Its real soft power-off is SOFT_PWROFF (0x27) bit 0, per the vendor BSP
+ header
 (AXP2202_SOFT_PWROFF) and U-Boot's axp_spl AXP717 support (AXP_SHUTDOWN_REG
 0x27 / AXP_SHUTDOWN_MASK BIT(0)). Add an AXP717_ID case that sets that bit
-(RMW; bits 2-3 hold power-on configuration) and add the register to the AXP717
+(RMW; bits 2-3 hold power-on configuration) and add the register to the
+ AXP717
 writeable range so the write is not filtered out.
 
 Adopted for the Trimui Smart Pro S (AXP717-powered sun55iw3 handheld):

@@ -13,7 +13,6 @@ On the A523 a true PMIC power-cycle is the dependable reboot path: the
 watchdog and PSCI resets return the SoC to the SPL, which then hangs
 re-training warm DRAM; unpowering DRAM via the PMIC avoids that.
 
-Assisted-by: Claude:claude-opus-4-8 [Claude Code]
 Signed-off-by: Midgy BALON <midgy971@gmail.com>
 ---
  drivers/mfd/axp20x.c       | 31 +++++++++++++++++++++++++++++++
