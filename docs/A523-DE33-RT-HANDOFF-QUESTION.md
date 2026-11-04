@@ -137,6 +137,15 @@ match stock. So in video mode the DSI never reaches active video; in the stock 8
 command mode the DSI transmits but the TCON→DE pull (`rd_flag`) never starts. Both
 walls are the same coupled event: no frame ever clocks out of the DE.
 
+**8e. 2026-11-04 instrumented one-shot probes (v7.4-rc1, video mode, size fix
+applied).** T1: a single full arm with the beam-gate bypassed → `FRAME_END`
+0/300 samples over 60 ms (arming alone does not complete a frame). T2: one
+dirty RCQ head + kick → the target register did **not** apply at the kick but
+**did** land within a 50 ms window (`RCQ_ACCEPT` 238/250, `RCQ_FINISH` 0/250):
+the RCQ walk runs and applies asynchronously, but `RCQ_FINISH` — like
+`FRAME_END` — is not gated on the DMA; it requires a frame actually clocking
+out to the TCON, which never happens.
+
 ## 7. Reproduce / environment
 
 - Mainline tree **v7.4-rc1** (behaviour identical on v7.3-rc7); DE33 driver `sun55i_de`, A523 8080 path in `sun4i_tcon`. Everything in §3 was re-confirmed live on v7.4-rc1 in the stock-matching 8080 config.
