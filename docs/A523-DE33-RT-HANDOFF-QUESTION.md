@@ -4,7 +4,7 @@
 
 **Ask:** every driver-controllable register now matches the vendor's *working* firmware on the **same board**, yet the DE never clocks a frame out to the TCON (`FRAME_END` never asserts, the TCON never asserts `rd_flag`, the DSI FIFO starves). We believe the remaining gap is in the DE↔TCON **real-time frame-start / pull handshake** (we have since ruled out a DSI video-vs-command-mode mismatch — see §4), which is below the level a register diff can resolve. Pointers welcome.
 
-*Updated 2026-11-02: re-verified live on **v7.4-rc1** in the stock-matching 8080 config (`CPU_IF=0x10010007`, `CPU_TRI3=0`, `TRIGGER_START` held) — `rd_flag` never asserts across 1024 samples; the TCON0 counter IRQ is now **ruled out** (its `GINT0` bit10 does fire, yet `rd_flag` still never does). The question narrows to Q1/Q3. Earlier 2026-10-30: cross-checked the command-mode trigger sequence against the vendor BSP — added the §4 bullets and sharpened Q3 (the DSI video-vs-command angle is ruled out; the remaining divergence is the TCON0 counter-IRQ pacing).*
+*Updated 2026-11-04: two further decisive data points + one driver bug found & fixed (see §8). Earlier 2026-11-02: re-verified live on **v7.4-rc1** in the stock-matching 8080 config (`CPU_IF=0x10010007`, `CPU_TRI3=0`, `TRIGGER_START` held) — `rd_flag` never asserts across 1024 samples; the TCON0 counter IRQ is now **ruled out** (its `GINT0` bit10 does fire, yet `rd_flag` still never does). The question narrows to Q1/Q3. Earlier 2026-10-30: cross-checked the command-mode trigger sequence against the vendor BSP — added the §4 bullets and sharpened Q3 (the DSI video-vs-command angle is ruled out; the remaining divergence is the TCON0 counter-IRQ pacing).*
 
 ---
 
@@ -80,6 +80,50 @@ Neither path produces *applied datapath + a completed frame* in the same frame. 
 1. On the A523/T527 DE-v35x in **command/8080 (CPU-IF)** mode, what makes the DE↔TCON RT handshake actually *start* a frame — i.e. what causes the TCON's `rd_flag` to assert and the DE to clock a frame out — beyond the registers above? Is there an RT frame-start / sync-source wire or enable (TCON→DE) that the mainline path does not set?
 2. What is `RCQ_FINISH` (GLB_STS bit2) gated on? We see `RCQ_ACCEPT` but never `FINISH`, with a valid head list and correct pool placement (`@0x44020000`, within DE DMA reach). Is `FINISH` coupled to frame completion (so it cannot fire until the TCON pulls a frame)?
 3. The vendor paces command mode off the **TCON0 counter IRQ** (`LCD_IRQ_TCON0_CNTR`, enabled in `tcon0_open()` on the command-mode DSI path); the per-frame `dsi_tri_start`/`tcon0_tri_start` fire from it. On live v7.4-rc1 with the counter enabled, that interrupt (`GINT0` bit10) **does** fire — yet `rd_flag` still never asserts, and the completion interrupts `TRI_FINISH` (bit11) and `FSYNC` (bit9), which stock raises every frame, never do. So the counter IRQ is **not** the gate. What actually makes the 8080 transfer run to completion — raising `rd_flag`, then `TRI_FINISH`/`FSYNC` — when the trigger config already byte-matches stock (including `CPU_TRI3 = 0`)? (The DSI is *not* the mismatch: `BASIC_CTL1`=`0x15`/VIDEO_MODE=1 matches stock, which also runs the DSI video-mode FSM under the 8080 trigger — the panel ends init with DCS `0x35 SET_TEAR_ON` and is TE-paced at ~1 `dsi1` IRQ/frame in both.)
+
+## 8. Update 2026-11-04 — DE produces nothing with src=DE; size-register transpose found & fixed; BSP RCQ bootstrap answered
+
+Three additions from a BSP/source session plus one more live run (v7.4-rc1):
+
+**8a. P0b (the last matrix corner) — negative.** 8080 manual config + AUTO trigger
+(`CPU_IF=0x10030007`) + `src_sel=0` (DE content, not the pattern generator) +
+per-frame AHB re-arm: DSI FIFO stays `0xf0000000`, `GLB_STS` = `0x100` steady over
+minutes (`FRAME_END` b0 never), TCON beam frozen at line 0. Mechanism = a
+beam-gate deadlock in our driver (arm waits for the beam in blanking; the beam
+needs DE content; DE content needs the arm). Conclusion: **with the DE as source
+the RT engine emits no pixel stream even when the read path is live** — only the
+TCON pattern generator (`src_sel=1`) has ever put pixels on glass. Combined with
+the 2026-10-27 video-mode run (beam swept, `FRAME_END` did fire, FIFO still
+starved): the DE can complete frames but they carry no data → fault in the DE
+pixel fetch/output, not in trigger/blender/handshake config.
+
+**8b. Real driver bug found and fixed — transposed size registers.** The DE-v35x
+size registers are encoded `(height-1)<<16 | (width-1)` (vendor BSP
+`de_bld.c de_bld_set_out_size`, `de_ovl.c` mbsize/win_size, `de_fmt.c` size;
+identical to mainline `SUN8I_MIXER_SIZE` and to ut-slayer v0.5's
+`SUN55I_DE_OUT_SIZE`). Our out-of-tree macro had w/h **swapped**, so for the
+portrait 720×1280 panel we programmed `0x02cf04ff` (i.e. 1280×720 landscape) into
+OVL MBSIZE, BLD in/out size and DE-top OUT_SIZE, while the fb pitch was 2880
+(720×4) — a wrong DRAM offset on every scanline, consistent with 8a (frames
+complete but content is garbage/black). Fix: macro corrected to
+`(((h)-1)<<16) | ((w)-1)` → `0x04ff02cf` for 720×1280; `sun8i-mixer.ko` rebuilt on
+v7.4-rc1 (md5 `0be3fab8fd88c4d5bf51707c92701340`). On-HW test pending (device
+offline at the time).
+
+**8c. BSP answers on the RCQ bootstrap** (`lowlevel_v35x/de35x/de_rtmx.c`,
+`de_top.c`, `disp_manager.c`): `LEN` (DE+0x811c) is the **byte size of the RCQ head
+array** (`alloc_num * sizeof(struct de_rcq_head)` = ×16), not a walk length — our
+`0x160` (22 heads) is self-consistent vs vendor `0x6E0` (110 heads; the vendor
+simply builds more sub-module blocks). `de_rtmx_start()` sets only the head
+pointer/length — there is **no initial kick**; RCQ kicks are per-frame from the
+manager apply path in IRQ context (`disp_manager.c` protect/unprotect →
+`disp_al_manager_set_rcq_update(disp,1)` → `writel(1, DE+0x8110)`), and
+`RCQ_FINISH` is handled as an IRQ with the same `GLB_CTL` enables we use (`0xd1`;
+the vendor's live `0x01` capture is just its idle state). So there is no missing
+RCQ enablement/sequence on our side; the empty-kick experiment (§5: ACCEPT
+246/256, FINISH 0/256) plus 8a says `RCQ_FINISH`/`FRAME_END` are coupled to a
+frame actually clocking out — which never happens because the 8080 TCON→DE pull
+(`rd_flag`) never starts.
 
 ## 7. Reproduce / environment
 
