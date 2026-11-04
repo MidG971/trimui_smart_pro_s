@@ -125,6 +125,18 @@ RCQ enablement/sequence on our side; the empty-kick experiment (§5: ACCEPT
 frame actually clocking out — which never happens because the 8080 TCON→DE pull
 (`rd_flag`) never starts.
 
+**8d. 2026-11-04 live run (v7.4-rc1, size fix applied, TCON vblank IRQ force-armed,
+per-vblank DE re-arm active) — still no image.** Solid-white fb0 (verified in DRAM
+at the DE layer address 0x44100000) → panel still black. `GLB_STS.FRAME_END` = 0 in
+100+ samples; `RCQ_FINISH` never, even with a per-frame null RCQ kick (RCQ_ACCEPT
+toggles, FINISH doesn't). In DSI video mode the DSI FSM is parked at instruction 1
+(`debug_inst 0x2f0 = 0x00100000`, `video_curr_line 0x2e0` stuck at 0) vs stock at
+instruction 3/HSD with the line sweeping — the TX FIFO fill is only idle/blanking
+packets, not pixels; `INST_ST` 0→1 re-pulses don't advance it. DSI CTL/BASIC regs
+match stock. So in video mode the DSI never reaches active video; in the stock 8080
+command mode the DSI transmits but the TCON→DE pull (`rd_flag`) never starts. Both
+walls are the same coupled event: no frame ever clocks out of the DE.
+
 ## 7. Reproduce / environment
 
 - Mainline tree **v7.4-rc1** (behaviour identical on v7.3-rc7); DE33 driver `sun55i_de`, A523 8080 path in `sun4i_tcon`. Everything in §3 was re-confirmed live on v7.4-rc1 in the stock-matching 8080 config.
