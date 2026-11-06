@@ -45,6 +45,18 @@ concrete next probe. Device: `trimui-smartpro-s` (Tailscale), build host `compil
 - leow149 A133 port: same panel family; their black-screen causes (SRAM C alias, DE
   clocks in DT, TCON IRQ wiring, panel reset, panel ID) all already handled on ours.
 
+## Converged while re-checking local docs (2026-11-06) — do not redo
+- Async bridge `0x5008004c`: BSP writes `soc_ver<2 ? 0x10 : 0x0`; ours (ver>=2) = 0 =
+  stock live = 0. No separate read-path bit exists in the v35x BSP. CLOSED.
+- DE-top debug regs `0x50080e0` (DE_DEBUG_CTL) = 0x10, `0x80e4/e8/ec` = 0, `0x5008080` =
+  0xffff — all match the 2026-10-22 stock fulldump byte-for-byte. CLOSED.
+- TCON `0x5502 07c` (TCON_DRQ) = 0 = stock 0; in v35x it's reserved (`tcon_reg070[4]`). CLOSED.
+- AUTO vs manual trigger: stock oracle `CPU_IF=0x10010005` has AUTO (bit17) CLEAR →
+  stock runs MANUAL trigger + per-frame TRIGGER_START pulse; BSP panel drivers comment
+  out `tcon0_cpu_set_tri_mode`. We match stock. CLOSED.
+- MBUS audit (old checklist): no `mbus-de` CCU gate exists (H616 has none either);
+  `DE_MBUS_CLK 0x5008008=1` live. CLOSED 2026-10-26.
+
 ## OPEN hypotheses — the digging list (priority order)
 1. **SMMU reset/TLB timeouts**: probe logged "TLB invalidation timed out" ×4 — the
    RST_BUS_IOMMU (0x7bc bit16) may not fully release the v15 SMMU on A523. Cross-check
