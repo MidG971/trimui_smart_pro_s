@@ -1,0 +1,11 @@
+--- a/drivers/clk/sunxi-ng/ccu-sun55i-a523.c	2026-11-06 00:07:33.595657004 +0000
++++ drivers/clk/sunxi-ng/ccu-sun55i-a523.c	2026-11-06 00:07:33.607656733 +0000
+@@ -1530,6 +1530,8 @@
+ 
+ static struct ccu_reset_map sun55i_a523_ccu_resets[] = {
+ 	[RST_MBUS]		= { 0x540, BIT(30) },
++	/* IOMMU BGR keeps the H6/H616 layout (gate bit0, reset bit16) */
++	[RST_BUS_IOMMU]		= { 0x7bc, BIT(16) },
+ 	[RST_BUS_NSI]		= { 0x54c, BIT(16) },
+ 	[RST_BUS_DE]		= { 0x60c, BIT(16) },
+ 	[RST_BUS_DI]		= { 0x62c, BIT(16) },

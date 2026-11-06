@@ -1,0 +1,40 @@
+--- a/drivers/gpu/drm/sun4i/sun55i_de.c	2026-11-04 13:55:38.155947825 +0000
++++ drivers/gpu/drm/sun4i/sun55i_de.c	2026-11-06 00:14:46.963879419 +0000
+@@ -12,6 +12,7 @@
+ 
+ #include <linux/bitops.h>
+ #include <linux/delay.h>
++#include <linux/iommu.h>
+ #include <linux/device.h>
+ #include <linux/dma-mapping.h>
+ #include <linux/hrtimer.h>
+@@ -692,7 +693,8 @@
+ 	 * Fail gracefully instead: the mixer bind fails and DRM never aggregates
+ 	 * (no card0), but the kernel boots and stays reachable over the network.
+ 	 */
+-	if (de->pool_dma + de->pool_size > SUN55I_DE_DMA_MAX) {
++	if (!device_iommu_mapped(mixer->dev) &&
++	    de->pool_dma + de->pool_size > SUN55I_DE_DMA_MAX) {
+ 		dev_err(mixer->dev,
+ 			"sun55i_de: RCQ pool @%pad (+%zu) exceeds DE DMA reach %#x; refusing RCQ (add a low memory-region to the mixer node)\n",
+ 			&de->pool_dma, de->pool_size, SUN55I_DE_DMA_MAX);
+@@ -1848,7 +1850,8 @@
+ 		 * as the RCQ path below.
+ 		 */
+ 		if (ahb_frame_kick &&
+-		    !WARN_ONCE(de->heads_dma + de->pool_size > SUN55I_DE_DMA_MAX,
++		    !WARN_ONCE(!device_iommu_mapped(de->mixer->dev) &&
++		       de->heads_dma + de->pool_size > SUN55I_DE_DMA_MAX,
+ 			       "sun55i_de: RCQ head above DE DMA reach; skipping ahb_frame_kick\n")) {
+ 			unsigned int k;
+ 
+@@ -1867,7 +1870,8 @@
+ 		 */
+ 		regmap_write(de->mixer->top_regs, SUN55I_MIXER_RCQ_STATUS,
+ 			     SUN55I_MIXER_RCQ_STATUS_W1C);
+-		if (!WARN_ONCE(de->heads_dma + de->pool_size > SUN55I_DE_DMA_MAX,
++		if (!WARN_ONCE(!device_iommu_mapped(de->mixer->dev) &&
++		       de->heads_dma + de->pool_size > SUN55I_DE_DMA_MAX,
+ 			       "sun55i_de: RCQ head above DE DMA reach; skipping arm to avoid MBUS wedge\n")) {
+ 			regmap_write(de->mixer->top_regs, SUN55I_MIXER_RCQ_CTL, 1);
+ 			de->rcq_kicked = true;

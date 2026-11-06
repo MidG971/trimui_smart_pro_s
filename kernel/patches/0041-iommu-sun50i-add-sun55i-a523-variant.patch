@@ -1,0 +1,10 @@
+--- a/include/dt-bindings/reset/sun55i-a523-ccu.h	2026-11-06 00:07:33.594657027 +0000
++++ include/dt-bindings/reset/sun55i-a523-ccu.h	2026-11-06 00:07:33.607656733 +0000
+@@ -82,6 +82,7 @@
+ #define RST_BUS_VIDEO_OUT0	73
+ #define RST_BUS_VIDEO_OUT1	74
+ #define RST_BUS_LEDC		75
++#define RST_BUS_IOMMU		78
+ #define RST_BUS_CSI		76
+ #define RST_BUS_ISP		77
+ 

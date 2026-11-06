@@ -1,0 +1,20 @@
+--- a/arch/arm64/boot/dts/allwinner/sun55i-a523.dtsi	2026-11-05 23:46:36.698913672 +0000
++++ arch/arm64/boot/dts/allwinner/sun55i-a523.dtsi	2026-11-06 00:07:33.608656711 +0000
+@@ -330,7 +330,16 @@
+ 			};
+ 		};
+ 
+-		ccu: clock-controller@2001000 {
++		iommu: iommu@2010000 {
++		compatible = "allwinner,sun55i-a523-iommu", "allwinner,sun50i-h616-iommu";
++		reg = <0x02010000 0x1000>;
++		interrupts = <GIC_SPI 65 IRQ_TYPE_LEVEL_HIGH>;
++		clocks = <&ccu CLK_BUS_IOMMU>;
++		resets = <&ccu RST_BUS_IOMMU>;
++		#iommu-cells = <1>;
++	};
++
++	ccu: clock-controller@2001000 {
+ 			compatible = "allwinner,sun55i-a523-ccu";
+ 			reg = <0x02001000 0x1000>;
+ 			clocks = <&osc24M>, <&rtc CLK_OSC32K>,

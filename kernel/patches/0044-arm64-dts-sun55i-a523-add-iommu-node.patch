@@ -1,0 +1,10 @@
+--- a/arch/arm64/boot/dts/allwinner/trimui-de33.dtsi	2026-11-05 23:46:36.697913695 +0000
++++ arch/arm64/boot/dts/allwinner/trimui-de33.dtsi	2026-11-05 23:46:36.710913403 +0000
+@@ -73,6 +73,7 @@
+ 
+ 			mixer0: mixer@100000 {
+ 				compatible = "allwinner,sun55i-a523-de33-mixer-0";
++				iommus = <&iommu 5>;
+ 				reg = <0x100000 0x100000>,
+ 				      <0x8100 0x40>,
+ 				      <0x280000 0x20000>,

@@ -146,6 +146,15 @@ the RCQ walk runs and applies asynchronously, but `RCQ_FINISH` — like
 `FRAME_END` — is not gated on the DMA; it requires a frame actually clocking
 out to the TCON, which never happens.
 
+**8f. 2026-11-06 — IOMMU bound (vendor DT proves the DE is IOMMU master 5), still
+black.** The vendor DTB puts `de@5000000` behind `iommu@2010000` (v15, master 5). We
+ported and bound the sun50i IOMMU on A523 (A523 variant with the v14 TLB-prefetch
+ONLY_VALID bits, `iommus = <&iommu 5>` on the mixer, RST_BUS_IOMMU@0x7bc bit16): the
+IOMMU binds (group 0 = mixer), the DE RCQ pool now works through IOVAs, no page
+faults. Panel still black, FRAME_END still never — the IOMMU is necessary but not the
+frame-clock-out trigger. (Details: `docs/A523-IOMMU-NOTES.md`; full resume plan:
+`docs/DISPLAY-FRAME-CLOCKOUT-PLAN.md`.)
+
 ## 7. Reproduce / environment
 
 - Mainline tree **v7.4-rc1** (behaviour identical on v7.3-rc7); DE33 driver `sun55i_de`, A523 8080 path in `sun4i_tcon`. Everything in §3 was re-confirmed live on v7.4-rc1 in the stock-matching 8080 config.
