@@ -127,3 +127,14 @@ the fixed mic codec, WiFi). ⚠ the **display** often comes up in its usual flak
 reboot — that's the known display boot-to-boot fragility, orthogonal to the reboot (device is fully
 functional over SSH regardless); blank it with `echo 4 > /sys/class/graphics/fb0/blank`.
 DONE 2026-10-07 (proper/upstream fix): the **axp20x restart handler** (`kernel/patches/0036-mfd-axp20x-restart-the-AXP717-via-SOFT_PWROFF.patch`, `regmap_set_bits(AXP717_SOFT_PWROFF, BIT(1))` at SYS_OFF_PRIO_FIRMWARE) is now **built into the device kernel Image and HW-verified** — with the userspace hook disabled, native `systemctl reboot`/`reboot` power-cycles the PMIC via the handler and the device returns on its own (~20 s). The userspace systemd shutdown hook above was a transitional stopgap and has been removed; the kernel handler is the mechanism now (upstream-worthy, companion to the 0024 SOFT_PWROFF poweroff).
+
+---
+
+## Update 2026-11-10 — poweroff also native now
+
+`shutdown`/`poweroff` previously did nothing: `axp20x_power_off()` had no AXP717
+case and wrote the generic 0x32 (filtered by the AXP717 regmap). Fixed with
+`case AXP717_ID: regmap_set_bits(AXP717_SOFT_PWROFF=0x27, BIT(0))` (patch 0047/0048).
+HW-tested on 7.4-rc1 (Image md5 5bab3395…): `poweroff` over SSH powers the unit
+off; `reboot` power-cycles and returns (~55 s) via the userspace hook. Both paths
+native; no manual power-cycling needed except cold-boot tests.

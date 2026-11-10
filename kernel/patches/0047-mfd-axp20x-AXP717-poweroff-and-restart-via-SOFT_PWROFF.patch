@@ -1,0 +1,76 @@
+--- a/drivers/mfd/axp20x.c	2026-11-04 15:53:16.785262904 +0000
++++ drivers/mfd/axp20x.c	2026-11-10 01:12:40.524189643 +0000
+@@ -222,6 +222,7 @@
+ 	regmap_reg_range(AXP717_PMU_FAULT, AXP717_MODULE_EN_CONTROL_1),
+ 	regmap_reg_range(AXP717_MIN_SYS_V_CONTROL, AXP717_BOOST_CONTROL),
+ 	regmap_reg_range(AXP717_VSYS_V_POWEROFF, AXP717_VSYS_V_POWEROFF),
++	regmap_reg_range(AXP717_SOFT_PWROFF, AXP717_SOFT_PWROFF),
+ 	regmap_reg_range(AXP717_IRQ0_EN, AXP717_IRQ4_EN),
+ 	regmap_reg_range(AXP717_IRQ0_STATE, AXP717_IRQ4_STATE),
+ 	regmap_reg_range(AXP717_TS_PIN_CFG, AXP717_TS_PIN_CFG),
+@@ -1247,20 +1248,44 @@
+ 	case AXP323_ID:
+ 	case AXP313A_ID:
+ 		shutdown_reg = AXP313A_SHUTDOWN_CTRL;
++		regmap_set_bits(axp20x->regmap, shutdown_reg, AXP20X_OFF);
++		break;
++	case AXP717_ID:
++		/* AXP717/AXP2202 power off via SOFT_PWROFF (0x27) bit0 */
++		regmap_set_bits(axp20x->regmap, AXP717_SOFT_PWROFF,
++				AXP717_SOFT_PWROFF_POWEROFF);
+ 		break;
+ 	default:
+-		shutdown_reg = AXP20X_OFF_CTRL;
++		regmap_set_bits(axp20x->regmap, AXP20X_OFF_CTRL, AXP20X_OFF);
+ 		break;
+ 	}
+ 
+-	regmap_set_bits(axp20x->regmap, shutdown_reg, AXP20X_OFF);
+-
+ 	/* Give capacitors etc. time to drain to avoid kernel panic msg. */
+ 	mdelay(500);
+ 
+ 	return NOTIFY_DONE;
+ }
+ 
++static int axp717_restart(struct sys_off_data *data)
++{
++	struct axp20x_dev *axp20x = data->cb_data;
++
++	/*
++	 * The AXP717/AXP2202 can power-cycle the whole system: writing
++	 * SOFT_PWROFF (0x27) bit 1 makes the PMU power off and then power on
++	 * again (VRTC stays up), per the AXP717/AXP717C datasheet. A true PMIC
++	 * power-cycle is the reliable restart on the A523: the watchdog/PSCI
++	 * resets return the SoC to the SPL, which then hangs re-training warm
++	 * DRAM; unpowering DRAM via the PMIC avoids that.
++	 */
++	regmap_set_bits(axp20x->regmap, AXP717_SOFT_PWROFF,
++			AXP717_SOFT_PWROFF_RESTART);
++
++	mdelay(500);
++
++	return NOTIFY_DONE;
++}
++
+ int axp20x_match_device(struct axp20x_dev *axp20x)
+ {
+ 	struct device *dev = axp20x->dev;
+@@ -1461,6 +1486,17 @@
+ 	if (axp20x->variant != AXP288_ID)
+ 		devm_register_power_off_handler(axp20x->dev, axp20x_power_off, axp20x);
+ 
++	/*
++	 * Prefer a PMIC power-cycle for restart on the AXP717 (see
++	 * axp717_restart): register at SYS_OFF_PRIO_FIRMWARE so it runs before
++	 * the watchdog and PSCI restart handlers, which hang the SPL on warm
++	 * DRAM on the A523.
++	 */
++	if (axp20x->variant == AXP717_ID)
++		devm_register_sys_off_handler(axp20x->dev, SYS_OFF_MODE_RESTART,
++					      SYS_OFF_PRIO_FIRMWARE,
++					      axp717_restart, axp20x);
++
+ 	dev_info(axp20x->dev, "AXP20X driver loaded\n");
+ 
+ 	return 0;
