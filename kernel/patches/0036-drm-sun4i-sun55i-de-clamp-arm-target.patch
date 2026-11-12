@@ -1,0 +1,30 @@
+From: Midgy BALON <midgy971@gmail.com>
+Subject: [PATCH] drm/sun4i: sun55i-de: clamp RCQ arm target to leading blanking
+
+The v35x RCQ latches ~immediately when armed and is not frame-gated, so
+the arm must land in the vertical blanking. arm_target = vbp + 3% of
+vtotal (vendor math) can exceed the leading-blanking size on modes with
+a large back porch, placing the arm inside active video. Clamp it to
+half the leading blanking, in raw (un-doubled) counter units like
+arm_target itself. Matches the Armbian sunxi-6.18 7000 series.
+
+---
+ drivers/gpu/drm/sun4i/sun55i_de.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+--- a/drivers/gpu/drm/sun4i/sun55i_de.c
++++ b/drivers/gpu/drm/sun4i/sun55i_de.c
+@@ -865,6 +865,13 @@
+ 	vbp = mode->crtc_vtotal - mode->crtc_vsync_end;
+ 	de->line_total = vtotal ? vtotal : 1;
+ 	de->arm_target = vbp + (vtotal * 3) / 100;
++	/*
++	 * Clamp the arm target to half the leading blanking so it can never
++	 * land inside active video (vendor targets ~line 69 at 1080p60).
++	 * Raw (un-doubled) units, same as arm_target itself.
++	 */
++	if (de->arm_target > (vtotal - mode->crtc_vsync_start) / 2)
++		de->arm_target = (vtotal - mode->crtc_vsync_start) / 2;
+ 	de->ns_per_line = clock ?
+ 		div_u64((u64)mode->crtc_htotal * NSEC_PER_MSEC, clock) : 0;
+ 

@@ -14,9 +14,9 @@ powers off by accident; a clean poweroff takes a deliberate long hold.
 - The original plan was a navigable **on-screen power menu**. Abandoned: the A523 DSI panel
   won't reliably render/establish a custom frame (commit/flip_done deadlock; see
   `docs/DISPLAY-*`). Gestures give the same power actions with zero display dependency.
-- **Restart gesture not yet wired** (originally omitted because `systemctl reboot` hung): warm
-  reboot is now **fixed** (2026-10-07 — PMIC power-cycle via a systemd shutdown hook, see
-  `docs/WARM-REBOOT-NOTES.md`), so a double-tap → reboot gesture is now safe to add.
+- **Restart is intentionally omitted**: `systemctl reboot` uses the warm-reboot path, which is
+  broken on this board (it tears down then hangs, needing a manual power-cycle). Re-add a
+  double-tap -> reboot once warm reboot works.
 
 ## Files (deployed paths)
 - `/usr/local/bin/power-btn-daemon.py` — reads the AXP PEK (found BY NAME, not a fixed event
@@ -35,3 +35,13 @@ powers off by accident; a clean poweroff takes a deliberate long hold.
 - `systemctl suspend` hands back around resume -> wake guard is release-based (ignore next
   release), not timed.
 - LED ring restores ~10 s after wake (resume path settling) — cosmetic.
+
+## Wake-from-off: Armbian pek `.shutdown` patch — evaluated and DROPPED (2026-11-11)
+Armbian carries `drv-input-axp20x-pek-enable-wakeup-shutdown.patch` (Samuel Holland,
+2021): it adds a platform `.shutdown` op that re-arms the PEK IRQs as wake sources.
+Dropped for this port, two reasons:
+- It only matters for "fake off" (kernel halts, PMIC stays powered). Our `poweroff`
+  does a REAL PMIC off via AXP717 SOFT_PWROFF (patch 0024, HW-tested), so wake-from-off
+  is handled inside the PMIC itself, not by a kernel wake IRQ.
+- Not mainline: the `.shutdown` op is absent from both v7.4-rc1 and torvalds/master
+  `axp20x-pek.c` (checked 2026-11-11) — carrying it would break the mainline-ok rule.

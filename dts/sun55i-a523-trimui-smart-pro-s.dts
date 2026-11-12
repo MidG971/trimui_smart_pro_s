@@ -72,11 +72,12 @@
 	 * axp717 battery driver reads SoC from hardware and consumes only the
 	 * charge-current + voltage limits below — the vendor's 32-point OCV curve
 	 * (pmu_bat_para1..32) is not needed by mainline (kept in FIRMWARE-FINDINGS).
-	 * VERIFY the design-min and capacity against the device.
+	 * HW-verified 2026-11-11: 5000 mAh / 4.2 V max live via sysfs (matches vendor
+ * pmu_battery_cap=0x1388, pmu_init_chgvol=0x1068); 3.4 V min kept as design cutoff.
 	 */
 	battery: battery {
 		compatible = "simple-battery";
-		voltage-min-design-microvolt = <3400000>;		/* VERIFY */
+		voltage-min-design-microvolt = <3400000>;		/* HW-verified 2026-11-11 */
 		voltage-max-design-microvolt = <4200000>;		/* vendor CV = 4.2 V */
 		constant-charge-current-max-microamp = <1000000>;	/* 1 A runtime */
 		charge-full-design-microamp-hours = <5000000>;		/* 5000 mAh */
@@ -307,7 +308,7 @@
 				regulator-always-on;
 				regulator-min-microvolt = <920000>;
 				regulator-max-microvolt = <920000>;
-				regulator-name = "vdd-gpu-sys";	/* VERIFY */
+				regulator-name = "vdd-gpu-sys";	/* HW-verified 2026-11-11 */
 			};
 
 			/*
@@ -344,11 +345,11 @@
 			};
 
 			reg_aldo1: aldo1 {
-				/* VERIFY connection */
+				/* unused on Smart Pro S — no consumers, HW 2026-11-11 */
 			};
 
 			reg_aldo2: aldo2 {
-				/* VERIFY connection */
+				/* unused on Smart Pro S — no consumers, HW 2026-11-11 */
 			};
 
 			/* aldo3: WiFi 3.3V (vendor wlan_power[0] = aldo3 @ 3.3V). */
@@ -356,14 +357,14 @@
 				regulator-always-on;
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
-				regulator-name = "vcc-wifi-3v3";	/* VERIFY */
+				regulator-name = "vcc-wifi-3v3";	/* HW-verified 2026-11-11 */
 			};
 
 			reg_aldo4: aldo4 {
 				regulator-always-on;
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
-				regulator-name = "vcc-pll-avcc";	/* VERIFY */
+				regulator-name = "vcc-pll-avcc";	/* HW-verified 2026-11-11 */
 			};
 
 			/* bldo1: WiFi 1.8V (vendor wlan_power[1] = bldo1 @ 1.8V). */
@@ -371,7 +372,7 @@
 				regulator-always-on;	/* AIC8800 core/RF 1.8V rail (kept powered) */
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
-				regulator-name = "vcc-wifi-1v8";	/* VERIFY */
+				regulator-name = "vcc-wifi-1v8";	/* HW-verified 2026-11-11 */
 			};
 
 			/* bldo2: 1.8V, vendor keeps on (wlan_power[2]). */
@@ -379,31 +380,31 @@
 				regulator-always-on;
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
-				regulator-name = "vcc-1v8";	/* VERIFY */
+				regulator-name = "vcc-1v8";	/* HW-verified 2026-11-11 */
 			};
 
 			reg_bldo3: bldo3 {
-				/* VERIFY connection */
+				/* unused on Smart Pro S — no consumers, HW 2026-11-11 */
 			};
 
 			reg_bldo4: bldo4 {
-				/* VERIFY connection */
+				/* unused on Smart Pro S — no consumers, HW 2026-11-11 */
 			};
 
 			reg_cldo1: cldo1 {
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
-				regulator-name = "vcc-1v8-io";	/* VERIFY (mmc vqmmc) */
+				regulator-name = "vcc-1v8-io";	/* HW-verified 2026-11-11 (mmc vqmmc) */
 			};
 
 			reg_cldo2: cldo2 {
-				/* VERIFY connection */
+				/* unused on Smart Pro S — no consumers, HW 2026-11-11 */
 			};
 
 			reg_cldo3: cldo3 {
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
-				regulator-name = "vcc-3v3-io-mmc";	/* VERIFY (mmc vmmc) */
+				regulator-name = "vcc-3v3-io-mmc";	/* HW-verified 2026-11-11 (mmc vmmc) */
 			};
 
 			reg_cldo4: cldo4 {
@@ -483,8 +484,8 @@
 	pinctrl-0 = <&mmc0_pins>;
 	bus-width = <4>;
 	cd-gpios = <&pio 5 6 GPIO_ACTIVE_LOW>;	/* PF6 */
-	vmmc-supply = <&reg_cldo3>;	/* VERIFY */
-	vqmmc-supply = <&reg_cldo1>;	/* VERIFY */
+	vmmc-supply = <&reg_cldo3>;	/* HW-verified 2026-11-11 */
+	vqmmc-supply = <&reg_cldo1>;	/* HW-verified 2026-11-11 */
 	cap-sd-highspeed;
 	status = "okay";
 };
@@ -534,8 +535,8 @@
 	mmc-ddr-1_8v;
 	mmc-hs200-1_8v;
 	mmc-hs400-1_8v;
-	vmmc-supply = <&reg_cldo3>;	/* 3.3V VERIFY */
-	vqmmc-supply = <&reg_cldo1>;	/* 1.8V VERIFY */
+	vmmc-supply = <&reg_cldo3>;	/* 3.3V, HW-verified 2026-11-11 */
+	vqmmc-supply = <&reg_cldo1>;	/* 1.8V, HW-verified 2026-11-11 */
 	status = "okay";
 };
 
@@ -632,7 +633,7 @@
  * register-compatible with the Richtek RT1711H. It negotiates USB-PD (charging)
  * and drives the OTG data-role switch (usb-role-switch on &usb_otg, via the
  * sunxi musb role-switch support) so the port can host adapters as well as
- * charge / act as a gadget. VERIFY on hardware: bus/pins (i2c5 = PB11/PB12),
+ * charge / act as a gadget. Bus/pins HW-verified 2026-11-11 (i2c5 = PB11/PB12, dev 1-004e); PD probe still fails -110 (unpowered twi5 — see docs/USB-HOST-PD-FIX-RECIPE.md),
  * ALERT irq (PL13), the PDOs, and a vbus-supply (an AXP drive-vbus rail) if
  * bus-powered host peripherals (keyboard/mouse) are to be powered.
  */
@@ -655,7 +656,7 @@
 			data-role = "dual";
 			try-power-role = "source";
 			op-sink-microwatt = <1000000>;
-			/* PDOs transcribed from the vendor DTB — VERIFY on hardware. */
+			/* PDOs transcribed from the vendor DTB — pending: rt1711h probe -110, see docs/USB-HOST-PD-FIX-RECIPE.md. */
 			sink-pdos = <0x220190c8 0x864190c8>;
 			source-pdos = <0x22019032 0x86419078>;
 
@@ -759,7 +760,7 @@
  * "LRADC keys" step in docs/HARDWARE-BRINGUP.md.
  */
 &lradc {
-	vref-supply = <&reg_bldo2>;	/* 1.8V VERIFY (LRADC reference rail) */
+	vref-supply = <&reg_bldo2>;	/* 1.8V LRADC vref on bldo2, HW-verified 2026-11-11 */
 	status = "okay";
 
 	button-410 {
@@ -805,7 +806,7 @@
  * data on PH19. The LEDC node + driver landed in mainline v7.1
  * (allwinner,sun55i-a523-ledc -> sun50i-a100-ledc). Vendor DTB: led_count=17,
  * output_mode="RGB". pixel-format defaults to grb (WS2812); flip on HW if colours
- * are swapped. VERIFY count/order against the device.
+ * are swapped. Count=17 matches vendor led_count; colour order pending first visual test.
  */
 &ledc {
 	pinctrl-names = "default";

@@ -1,0 +1,17 @@
+Subject: Re: trimui smart pro S
+To: juanmanuellopezcarrillo@gmail.com
+
+Hi Juan Manuel,
+
+Thanks for the detailed update — great progress on all fronts.
+
+On the bootloader/handover: we boot mainline SPL + BL31 + U-Boot from SD, so our panel starts black. Your "take over the bootloader's framebuffer without resetting anything" sounds like it could be the piece we're missing — is that sequence kernel-side (keep the DE/TCON/panel state the bootloader left and just re-point scanout), or does it depend on specific registers the stock TrimUI U-Boot leaves set? If it's kernel-side it should be portable to mainline U-Boot. It may well be the missing trigger for our frame-clock-out issue (#11): on our port the panel inits fine (DCS ACKed, D-PHY locked, backlight on) but the DE never clocks a frame out to the TCON.
+
+Also noted the cursor-plane tearing fix and clean DPMS off/on — we'll compare the mixer cursor path when the patches land. And interesting that the panel's real refresh rate differs from the advertised mode — what rate/timings did you measure? We run 720x1280.
+
+Kernel: good to know 7.2 works perfectly too. We're on 7.4-rc1 — did you try anything newer than 7.2? If the delta is small we can forward-port to 7.4-rc1 quickly.
+
+We're ready for the private beta whenever you are. The device is powered off at the moment, but our compile server is up, so I'll prepare the diff harness against our v7.4-rc1 tree in the meantime. Once the patches are public I'll diff them against our port and send a Tested-by.
+
+Best regards,
+Midgy
