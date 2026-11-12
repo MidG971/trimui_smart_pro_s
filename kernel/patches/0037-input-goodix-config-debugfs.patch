@@ -1,0 +1,66 @@
+From: =?UTF-8?q?Ond=C5=99ej=20Jirman?= <megi@xff.cz>
+Subject: [PATCH] Input: goodix: Add config debugfs file
+
+Expose the touchscreen config via debugfs.
+
+Signed-off-by: Ondrej Jirman <megi@xff.cz>
+---
+diff --git a/drivers/input/touchscreen/goodix.c b/drivers/input/touchscreen/goodix.c
+--- gv/drivers/input/touchscreen/goodix.c	2026-11-12 14:40:51.563870907 +0100
++++ g1/drivers/input/touchscreen/goodix.c	2026-11-12 14:40:51.595142499 +0100
+@@ -23,6 +23,7 @@
+ #include <linux/acpi.h>
+ #include <linux/of.h>
+ #include <linux/unaligned.h>
++#include <linux/debugfs.h>
+ #include "goodix.h"
+ 
+ #define GOODIX_GPIO_INT_NAME		"irq"
+@@ -1029,6 +1030,16 @@
+ 	return 0;
+ }
+ 
++static int ts_config_bin_show(struct seq_file *s, void *data)
++{
++        struct goodix_ts_data *ts = s->private;
++
++        seq_write(s, ts->config, ts->chip->config_len);
++
++        return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(ts_config_bin);
++
+ /**
+  * goodix_read_config - Read the embedded configuration of the panel
+  *
+@@ -1068,6 +1079,10 @@
+ 	}
+ 
+ 	ts->chip->calc_config_checksum(ts);
++
++        ts->debug_root = debugfs_create_dir("goodix", NULL);
++        debugfs_create_file("config.bin", 0444, ts->debug_root, ts,
++                            &ts_config_bin_fops);
+ }
+ 
+ /**
+@@ -1423,6 +1438,8 @@
+ 
+ 	if (ts->load_cfg_from_disk)
+ 		wait_for_completion(&ts->firmware_loading_complete);
++
++        debugfs_remove(ts->debug_root);
+ }
+ 
+ static int goodix_suspend(struct device *dev)
+diff --git a/drivers/input/touchscreen/goodix.h b/drivers/input/touchscreen/goodix.h
+--- gv/drivers/input/touchscreen/goodix.h	2026-11-12 14:40:51.570549177 +0100
++++ g1/drivers/input/touchscreen/goodix.h	2026-11-12 14:40:51.595408514 +0100
+@@ -103,6 +103,7 @@
+ 	u8 main_clk[GOODIX_MAIN_CLK_LEN];
+ 	int bak_ref_len;
+ 	u8 *bak_ref;
++        struct dentry *debug_root;
+ };
+ 
+ int goodix_i2c_read(struct i2c_client *client, u16 reg, u8 *buf, int len);

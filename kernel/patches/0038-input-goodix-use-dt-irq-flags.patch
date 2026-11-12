@@ -1,0 +1,67 @@
+From: =?UTF-8?q?Ond=C5=99ej=20Jirman?= <megi@xff.cz>
+Subject: [PATCH] input: touchscreen: goodix: Respect IRQ flags from DT when asked to
+
+Sometimes the IRQ flags determined from touchscreen config don't work
+well. Add "use-dt-irq-flags" DT property to use IRQF_ONESHOT from DT.
+
+Ported to v7.4-rc1: device_property_read_bool() instead of the removed
+of_node np local; binding property documented in goodix.yaml.
+
+Signed-off-by: Ondrej Jirman <megi@xff.cz>
+---
+diff --git a/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml b/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml
+--- g1/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml	2026-11-12 14:40:51.585347691 +0100
++++ g2/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml	2026-11-12 14:40:51.618971820 +0100
+@@ -59,6 +59,11 @@
+   touchscreen-size-y: true
+   touchscreen-swapped-x-y: true
+ 
++  use-dt-irq-flags:
++    type: boolean
++    description: Use the IRQ flags from the device tree (IRQF_ONESHOT)
++      instead of the flags derived from the touchscreen config.
++
+ additionalProperties: false
+ 
+ required:
+diff --git a/drivers/input/touchscreen/goodix.c b/drivers/input/touchscreen/goodix.c
+--- g1/drivers/input/touchscreen/goodix.c	2026-11-12 14:40:51.595142499 +0100
++++ g2/drivers/input/touchscreen/goodix.c	2026-11-12 14:40:51.601663878 +0100
+@@ -544,12 +544,17 @@
+ 
+ static int goodix_request_irq(struct goodix_ts_data *ts)
+ {
++	unsigned long irq_flags = ts->irq_flags;
++
+ 	if (!ts->client->irq)
+ 		return 0;
+ 
++	if (ts->use_dt_irqflags)
++		irq_flags = IRQF_ONESHOT;
++
+ 	return devm_request_threaded_irq(&ts->client->dev, ts->client->irq,
+ 					 NULL, goodix_ts_irq_handler,
+-					 ts->irq_flags, ts->client->name, ts);
++					 irq_flags, ts->client->name, ts);
+ }
+ 
+ static int goodix_check_cfg_8(struct goodix_ts_data *ts, const u8 *cfg, int len)
+@@ -1338,6 +1343,7 @@
+ 	if (!ts)
+ 		return -ENOMEM;
+ 
++	ts->use_dt_irqflags = device_property_read_bool(&client->dev, "use-dt-irq-flags");
+ 	ts->client = client;
+ 	i2c_set_clientdata(client, ts);
+ 	init_completion(&ts->firmware_loading_complete);
+diff --git a/drivers/input/touchscreen/goodix.h b/drivers/input/touchscreen/goodix.h
+--- g1/drivers/input/touchscreen/goodix.h	2026-11-12 14:40:51.595408514 +0100
++++ g2/drivers/input/touchscreen/goodix.h	2026-11-12 14:40:51.599745654 +0100
+@@ -81,6 +81,7 @@
+ 	const char *firmware_name;
+ 	struct touchscreen_properties prop;
+ 	unsigned int max_touch_num;
++	bool use_dt_irqflags;
+ 	unsigned int int_trigger_type;
+ 	struct regulator *avdd28;
+ 	struct regulator *vddio;

@@ -1,0 +1,107 @@
+From: Midgy BALON <midgy971@gmail.com>
+Subject: [PATCH] Input: goodix: Add poweroff-in-suspend DT property
+
+Port of megous' "Add option to power off the controller during suspend"
+to v7.4-rc1: when "poweroff-in-suspend" is set, system suspend powers
+the controller down completely (free IRQ, drive INT low, hold reset
+low, disable AVDD28/VDDIO) instead of the controller sleep mode, and
+resume re-enables regulators, resets and re-requests the IRQ.
+Useful on handhelds where the controller draws ~40 mW in sleep.
+Binding property documented in goodix.yaml.
+---
+diff --git a/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml b/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml
+--- g2/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml	2026-11-12 14:40:51.618971820 +0100
++++ g3/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml	2026-11-12 14:40:51.633329283 +0100
+@@ -64,6 +64,12 @@
+     description: Use the IRQ flags from the device tree (IRQF_ONESHOT)
+       instead of the flags derived from the touchscreen config.
+ 
++  poweroff-in-suspend:
++    type: boolean
++    description: Power off the touch controller during system suspend
++      (free the IRQ, hold INT and reset low, disable the regulators)
++      instead of putting it into its sleep mode.
++
+ additionalProperties: false
+ 
+ required:
+diff --git a/drivers/input/touchscreen/goodix.c b/drivers/input/touchscreen/goodix.c
+--- g2/drivers/input/touchscreen/goodix.c	2026-11-12 14:40:51.601663878 +0100
++++ g3/drivers/input/touchscreen/goodix.c	2026-11-12 14:40:51.630199344 +0100
+@@ -1343,11 +1343,14 @@
+ 	if (!ts)
+ 		return -ENOMEM;
+ 
+-	ts->use_dt_irqflags = device_property_read_bool(&client->dev, "use-dt-irq-flags");
++	ts->use_dt_irqflags = device_property_read_bool(&client->dev,
++							  "use-dt-irq-flags");
+ 	ts->client = client;
+ 	i2c_set_clientdata(client, ts);
+ 	init_completion(&ts->firmware_loading_complete);
+ 	ts->contact_size = GOODIX_CONTACT_SIZE;
++	ts->poweroff_in_suspend = device_property_read_bool(&client->dev,
++							  "poweroff-in-suspend");
+ 
+ 	error = goodix_get_gpio_config(ts);
+ 	if (error)
+@@ -1457,6 +1460,15 @@
+ 	if (ts->load_cfg_from_disk)
+ 		wait_for_completion(&ts->firmware_loading_complete);
+ 
++	if (ts->poweroff_in_suspend) {
++		goodix_free_irq(ts);
++		goodix_irq_direction_output(ts, 0);
++		gpiod_direction_output(ts->gpiod_rst, 0);
++		regulator_disable(ts->avdd28);
++		regulator_disable(ts->vddio);
++		return 0;
++	}
++
+ 	/* We need gpio pins to suspend/resume */
+ 	if (ts->irq_pin_access_method == IRQ_PIN_ACCESS_NONE) {
+ 		goodix_disable_irq(ts);
+@@ -1502,6 +1514,33 @@
+ 	u8 config_ver;
+ 	int error;
+ 
++	if (ts->poweroff_in_suspend) {
++		error = regulator_enable(ts->avdd28);
++		if (error) {
++			dev_err(dev, "Regulator avdd28 enable failed: %d\n", error);
++			return error;
++		}
++
++		error = regulator_enable(ts->vddio);
++		if (error) {
++			regulator_disable(ts->avdd28);
++			dev_err(dev, "Regulator vddio enable failed: %d\n", error);
++			return error;
++		}
++
++		error = goodix_reset(ts);
++		if (error) {
++			dev_err(dev, "Controller reset failed: %d\n", error);
++			return error;
++		}
++
++		error = goodix_request_irq(ts);
++		if (error)
++			return error;
++
++		return 0;
++	}
++
+ 	if (ts->irq_pin_access_method == IRQ_PIN_ACCESS_NONE) {
+ 		goodix_enable_irq(ts);
+ 		return 0;
+diff --git a/drivers/input/touchscreen/goodix.h b/drivers/input/touchscreen/goodix.h
+--- g2/drivers/input/touchscreen/goodix.h	2026-11-12 14:40:51.599745654 +0100
++++ g3/drivers/input/touchscreen/goodix.h	2026-11-12 14:40:51.631785022 +0100
+@@ -94,6 +94,7 @@
+ 	u16 version;
+ 	bool reset_controller_at_probe;
+ 	bool load_cfg_from_disk;
++	bool poweroff_in_suspend;
+ 	int pen_input_registered;
+ 	struct completion firmware_loading_complete;
+ 	unsigned long irq_flags;
