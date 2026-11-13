@@ -1,0 +1,96 @@
+From: Rajan Yadav <rajanyadav0307@gmail.com>
+Subject: [PATCH] usb: musb: sunxi: Unregister the generic PHY after dropping its reference
+
+Unbinding musb-sunxi oopses (KASAN UAF in devm_usb_phy_release) on
+v7.4-rc1: remove() unregisters the generic PHY device while the
+devm_usb_get_phy() reference is still held. Register a devres action
+that unregisters the PHY *before* devm_usb_get_phy() takes its
+reference, so devres drops the reference first.
+
+Adapted around our usb-role-switch patch (0013): the role_sw error
+paths return directly and remove() no longer unregisters the PHY
+explicitly.
+
+Fixes: 498dbd9aea20 ("usb: musb: sunxi: Fix accessing an released usb phy")
+Cc: stable@vger.kernel.org
+Signed-off-by: Rajan Yadav <rajanyadav0307@gmail.com>
+---
+--- a/drivers/usb/musb/sunxi.c
++++ b/drivers/usb/musb/sunxi.c
+@@ -717,6 +717,11 @@
+ 	.ram_bits	= SUNXI_MUSB_RAM_BITS,
+ };
+ 
++static void sunxi_musb_unregister_usb_phy(void *usb_phy)
++{
++	usb_phy_generic_unregister(usb_phy);
++}
++
+ static int sunxi_musb_probe(struct platform_device *pdev)
+ {
+ 	struct musb_hdrc_platform_data	pdata;
+@@ -811,11 +816,21 @@
+ 		return PTR_ERR(glue->usb_phy);
+ 	}
+ 
++	/*
++	 * Registered before devm_usb_get_phy(), so that devres drops the
++	 * reference to the PHY before the PHY device is unregistered.
++	 */
++	ret = devm_add_action_or_reset(&pdev->dev,
++				       sunxi_musb_unregister_usb_phy,
++				       glue->usb_phy);
++	if (ret)
++		return ret;
++
+ 	glue->xceiv = devm_usb_get_phy(&pdev->dev, USB_PHY_TYPE_USB2);
+ 	if (IS_ERR(glue->xceiv)) {
+ 		ret = PTR_ERR(glue->xceiv);
+ 		dev_err(&pdev->dev, "Error getting usb-phy %d\n", ret);
+-		goto err_unregister_usb_phy;
++		return ret;
+ 	}
+ 
+ 	platform_set_drvdata(pdev, glue);
+@@ -833,7 +848,7 @@
+ 		if (IS_ERR(glue->role_sw)) {
+ 			ret = dev_err_probe(&pdev->dev, PTR_ERR(glue->role_sw),
+ 					    "Error registering role switch\n");
+-			goto err_unregister_usb_phy;
++			return ret;
+ 		}
+ 	}
+ 
+@@ -852,27 +867,23 @@
+ 	if (IS_ERR(glue->musb_pdev)) {
+ 		ret = PTR_ERR(glue->musb_pdev);
+ 		dev_err(&pdev->dev, "Error registering musb dev: %d\n", ret);
+-		goto err_unregister_role_sw;
++		if (glue->role_sw)
++			usb_role_switch_unregister(glue->role_sw);
++		return ret;
+ 	}
+ 
+ 	return 0;
+-
+-err_unregister_role_sw:
+-	usb_role_switch_unregister(glue->role_sw);
+-err_unregister_usb_phy:
+-	usb_phy_generic_unregister(glue->usb_phy);
+-	return ret;
+ }
+ 
+ static void sunxi_musb_remove(struct platform_device *pdev)
+ {
+ 	struct sunxi_glue *glue = platform_get_drvdata(pdev);
+-	struct platform_device *usb_phy = glue->usb_phy;
+ 
+ 	platform_device_unregister(glue->musb_pdev);
+ 	if (glue->role_sw)
+ 		usb_role_switch_unregister(glue->role_sw);
+-	usb_phy_generic_unregister(usb_phy);
++	/* The generic PHY is unregistered by the devres action added in
++	 * probe, after the devm_usb_get_phy() reference has been dropped. */
+ }
+ 
+ static const struct sunxi_musb_cfg sun4i_a10_musb_cfg = {
