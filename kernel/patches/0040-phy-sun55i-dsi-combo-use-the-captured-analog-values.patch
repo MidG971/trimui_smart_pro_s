@@ -24,7 +24,6 @@ chased elsewhere in the pipeline - but it is independently verifiable: dump
 0x5509000 before and after and compare 0xe0 against the capture in
 docs/STOCK-DSI-REGISTERS.md.
 
-Assisted-by: Claude:claude-opus-5 [Claude Code]
 Signed-off-by: Midgy BALON <midgy971@gmail.com>
 ---
 diff --git a/drivers/phy/allwinner/phy-sun55i-dsi-combo.c b/drivers/phy/allwinner/phy-sun55i-dsi-combo.c

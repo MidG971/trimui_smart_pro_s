@@ -74,11 +74,11 @@ index 000000000..ea8ad8cf8
 +    #include <dt-bindings/clock/sun55i-a523-ccu.h>
 +
 +    clock-controller@8817000 {
-+        compatible = "allwinner,sun55i-a523-cpu-ccu";
-+        reg = <0x08817000 0x4000>;
-+        clocks = <&osc24M>, <&osc32k>, <&iosc>, <&ccu CLK_PLL_PERIPH0_600M>;
-+        clock-names = "hosc", "losc", "iosc", "pll-periph0-600m";
-+        #clock-cells = <1>;
++	compatible = "allwinner,sun55i-a523-cpu-ccu";
++	reg = <0x08817000 0x4000>;
++	clocks = <&osc24M>, <&osc32k>, <&iosc>, <&ccu CLK_PLL_PERIPH0_600M>;
++	clock-names = "hosc", "losc", "iosc", "pll-periph0-600m";
++	#clock-cells = <1>;
 +    };
 +
 +...

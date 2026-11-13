@@ -32,32 +32,32 @@ index b4eca702fe..f999574988 100644
  
 +  - if:
 +      properties:
-+        compatible:
-+          enum:
-+            - allwinner,sun55i-a523-codec
++	compatible:
++	  enum:
++	    - allwinner,sun55i-a523-codec
 +    then:
 +      properties:
-+        allwinner,audio-routing:
-+          items:
-+            enum:
-+              # Audio Pins on the SoC
-+              - HP
-+              - HPCOM
-+              - LINEOUT
-+              - MIC1
-+              - MIC2
-+              - MIC3
++	allwinner,audio-routing:
++	  items:
++	    enum:
++	      # Audio Pins on the SoC
++	      - HP
++	      - HPCOM
++	      - LINEOUT
++	      - MIC1
++	      - MIC2
++	      - MIC3
 +
-+              # Microphone Biases from the SoC
-+              - HBIAS
-+              - MBIAS
++	      # Microphone Biases from the SoC
++	      - HBIAS
++	      - MBIAS
 +
-+              # Board Connectors
-+              - Headphone
-+              - Headset Mic
-+              - Line Out
-+              - Mic
-+              - Speaker
++	      # Board Connectors
++	      - Headphone
++	      - Headset Mic
++	      - Line Out
++	      - Mic
++	      - Speaker
 +
    - if:
        properties:

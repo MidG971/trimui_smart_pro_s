@@ -1,3 +1,8 @@
+From: Midgy BALON <midgy971@gmail.com>
+Subject: [PATCH] Mfd axp20x AXP717 poweroff and restart via SOFT_PWROFF
+
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+---
 --- a/drivers/mfd/axp20x.c	2026-11-04 15:53:16.785262904 +0000
 +++ drivers/mfd/axp20x.c	2026-11-10 01:12:40.524189643 +0000
 @@ -222,6 +222,7 @@
@@ -74,3 +79,5 @@
  	dev_info(axp20x->dev, "AXP20X driver loaded\n");
  
  	return 0;
+
+Signed-off-by: Midgy BALON <midgy971@gmail.com>---

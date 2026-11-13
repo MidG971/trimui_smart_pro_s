@@ -12,8 +12,9 @@ CPU cambia de rate, el mux del cluster se reparenta temporalmente a un reloj
 estable (pll-periph0 @ 600MHz, índice 4) y vuelve al PLL una vez re-bloqueado.
 Prerequisito para cambiar la frecuencia con cpufreq sin colgar los cores.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 Signed-off-by: Midgy BALON <midgy971@gmail.com>
+Signed-off-by: Juan Manuel Lopez Carrillo <juanmanuellopezcarrillo@gmail.com>
+
 ---
  drivers/clk/sunxi-ng/ccu-sun55i-a523-cpu.c | 48 +++++++++++++++++++++-
  1 file changed, 47 insertions(+), 1 deletion(-)

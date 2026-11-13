@@ -8,6 +8,8 @@ low, disable AVDD28/VDDIO) instead of the controller sleep mode, and
 resume re-enables regulators, resets and re-requests the IRQ.
 Useful on handhelds where the controller draws ~40 mW in sleep.
 Binding property documented in goodix.yaml.
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+
 ---
 diff --git a/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml b/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml
 --- g2/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml	2026-11-12 14:40:51.618971820 +0100

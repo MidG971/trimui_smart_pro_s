@@ -1,6 +1,12 @@
+From: Midgy BALON <midgy971@gmail.com>
+Subject: [PATCH] dt-bindings: mfd: axp20x: add AXP717 SOFT_PWROFF bit definitions
+
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+---
 --- a/include/linux/mfd/axp20x.h
 +++ b/include/linux/mfd/axp20x.h
 @@ -126,6 +126,8 @@
  #define AXP717_SOFT_PWROFF		0x27
 +#define AXP717_SOFT_PWROFF_POWEROFF	BIT(0)
  #define AXP717_SOFT_PWROFF_RESTART	BIT(1)
+

@@ -19,7 +19,6 @@ Up / Volume Down all report clean press (INTS=0x03, KEYDOWN) and release
 (INTS=0x11, KEYUP); DATA0 codes 0x13/0x1e/0x29 map to 410/646/900 mV as
 expected.
 
-Assisted-by: Claude (Opus 4.8)
 Signed-off-by: Midgy BALON <midgy971@gmail.com>
 ---
 diff --git a/drivers/input/keyboard/sun4i-lradc-keys.c b/drivers/input/keyboard/sun4i-lradc-keys.c

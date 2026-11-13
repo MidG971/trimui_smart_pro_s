@@ -7,6 +7,7 @@ vtotal (vendor math) can exceed the leading-blanking size on modes with
 a large back porch, placing the arm inside active video. Clamp it to
 half the leading blanking, in raw (un-doubled) counter units like
 arm_target itself. Matches the Armbian sunxi-6.18 7000 series.
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
 
 ---
  drivers/gpu/drm/sun4i/sun55i_de.c | 7 +++++++

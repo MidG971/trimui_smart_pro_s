@@ -1,3 +1,8 @@
+From: Midgy BALON <midgy971@gmail.com>
+Subject: [PATCH] Dt bindings reset a523 add RST_BUS_IOMMU
+
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+---
 --- a/drivers/clk/sunxi-ng/ccu-sun55i-a523.c	2026-11-06 00:07:33.595657004 +0000
 +++ drivers/clk/sunxi-ng/ccu-sun55i-a523.c	2026-11-06 00:07:33.607656733 +0000
 @@ -1530,6 +1530,8 @@
@@ -9,3 +14,5 @@
  	[RST_BUS_NSI]		= { 0x54c, BIT(16) },
  	[RST_BUS_DE]		= { 0x60c, BIT(16) },
  	[RST_BUS_DI]		= { 0x62c, BIT(16) },
+
+Signed-off-by: Midgy BALON <midgy971@gmail.com>---

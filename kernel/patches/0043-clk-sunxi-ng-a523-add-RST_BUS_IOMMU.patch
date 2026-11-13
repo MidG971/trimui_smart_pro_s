@@ -1,3 +1,8 @@
+From: Midgy BALON <midgy971@gmail.com>
+Subject: [PATCH] Clk sunxi ng a523 add RST_BUS_IOMMU
+
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+---
 --- a/arch/arm64/boot/dts/allwinner/sun55i-a523.dtsi	2026-11-05 23:46:36.698913672 +0000
 +++ arch/arm64/boot/dts/allwinner/sun55i-a523.dtsi	2026-11-06 00:07:33.608656711 +0000
 @@ -330,7 +330,16 @@
@@ -18,3 +23,5 @@
  			compatible = "allwinner,sun55i-a523-ccu";
  			reg = <0x02001000 0x1000>;
  			clocks = <&osc24M>, <&rtc CLK_OSC32K>,
+
+Signed-off-by: Midgy BALON <midgy971@gmail.com>---

@@ -1,3 +1,8 @@
+From: Midgy BALON <midgy971@gmail.com>
+Subject: [PATCH] Arm64 dts trimui put mixer behind iommu
+
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+---
 --- a/drivers/gpu/drm/sun4i/sun55i_de.c	2026-11-04 13:55:38.155947825 +0000
 +++ drivers/gpu/drm/sun4i/sun55i_de.c	2026-11-06 00:14:46.963879419 +0000
 @@ -12,6 +12,7 @@
@@ -38,3 +43,5 @@
  			       "sun55i_de: RCQ head above DE DMA reach; skipping arm to avoid MBUS wedge\n")) {
  			regmap_write(de->mixer->top_regs, SUN55I_MIXER_RCQ_CTL, 1);
  			de->rcq_kicked = true;
+
+Signed-off-by: Midgy BALON <midgy971@gmail.com>---

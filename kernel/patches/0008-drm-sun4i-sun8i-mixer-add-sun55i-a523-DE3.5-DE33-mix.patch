@@ -31,7 +31,7 @@ index cbd18fd83..fb53cf2dc 100644
            contains:
              enum:
                - allwinner,sun50i-h616-de33-mixer-0
-+              - allwinner,sun55i-a523-de33-mixer-0
++	      - allwinner,sun55i-a523-de33-mixer-0
      then:
        properties:
          reg:

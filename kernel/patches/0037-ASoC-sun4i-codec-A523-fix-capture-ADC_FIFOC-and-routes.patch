@@ -34,7 +34,6 @@ helper so other SoCs are untouched:
 With all three, arecord captures real audio on the A523; acoustic
 capture confirmed on a Trimui Smart Pro S (internal mic on MIC1/ADC1).
 
-Assisted-by: Claude (Opus 4.8)
 Signed-off-by: Midgy BALON <midgy971@gmail.com>
 ---
  sound/soc/sunxi/sun4i-codec.c | 50 ++++++++++++++++++++++++++++++++++++++++

@@ -13,7 +13,6 @@ drop it into drivers/input/joystick/. The DT serdev child nodes
 (compatibles trimui,smart-pro-s-gamepad-left / -right under uart5 / uart7)
 and their binding are already in the board DTS and kernel/bindings/.
 
-Assisted-by: Claude (Opus 4.8)
 Signed-off-by: Midgy BALON <midgy971@gmail.com>
 ---
  drivers/input/joystick/Kconfig  | 13 +++++++++++++

@@ -29,7 +29,6 @@ loading sun8i-mixer dropped VE/GPU/VI/VO0/VO1/NAND/PCIE together and the
 side board went dark permanently; after it, VI/VO0/VO1 stay on and the
 board survives the mixer probe.
 
-Assisted-by: Claude:claude-opus-5 [Claude Code]
 Signed-off-by: Midgy BALON <midgy971@gmail.com>
 ---
  drivers/pmdomain/sunxi/sun55i-pck600.c | 11 ++++++++++-
