@@ -760,17 +760,24 @@ t_leds() {
 			python3 - "$_n" "$_leds" << 'PYEOF' >> "$TESTBUF" 2>&1
 import colorsys, sys, time
 n = int(sys.argv[1]); leds = sys.argv[2:]
+# HW-verified ring mapping (2026-11-14, candidate D): idx0 = upper-left,
+# left side 0..8 runs top->bottom, right side 9..16 uses the reversed mirror
+# so both sides show the same rainbow in sync. The global time term is
+# uniform, so mirror colour sync is preserved while animating.
+H = (n - 1) // 2
+def vpos(i):
+	return i if i <= H else H - (n - 1 - i)
 steps = 240
 for s in range(steps):
 		for i, d in enumerate(leds):
-			hue = (i / max(n, 1) + s / steps) % 1.0
+			hue = (vpos(i) / H * 0.66 + s / steps) % 1.0
 			r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
 			open(d + '/multi_intensity', 'w').write(f"{int(r*255)} {int(g*255)} {int(b*255)}")
 			open(d + '/brightness', 'w').write('255')
 		time.sleep(0.05)
 for d in leds:
 	open(d + '/brightness', 'w').write('0')
-print(f"chaser done: {steps} steps x {n} LEDs, restored off")
+print(f"chaser done: {steps} steps x {n} LEDs (mirror-synced candidate D), restored off")
 PYEOF
 			say "    chaser done, LEDs restored off"
 		fi
