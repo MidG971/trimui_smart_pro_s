@@ -753,6 +753,27 @@ t_leds() {
 		done
 		for _d in $_leds; do printf '0' > "$_d/brightness" 2>/dev/null; done
 		{ printf 'restored brightness=0 on %d LEDs\n' "$_n"; } >> "$TESTBUF"
+		# rainbow chaser: hue rotates across the ring, ~12 s (240 steps x 50 ms)
+		if command -v python3 >/dev/null 2>&1; then
+			say "  Rainbow chaser on all ${_n} LEDs (~12 s)."
+			{ printf 'chaser: rainbow sweep, 240 steps, %d LEDs\n' "$_n"; } >> "$TESTBUF"
+			python3 - "$_n" "$_leds" << 'PYEOF' >> "$TESTBUF" 2>&1
+import colorsys, sys, time
+n = int(sys.argv[1]); leds = sys.argv[2:]
+steps = 240
+for s in range(steps):
+		for i, d in enumerate(leds):
+			hue = (i / max(n, 1) + s / steps) % 1.0
+			r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+			open(d + '/multi_intensity', 'w').write(f"{int(r*255)} {int(g*255)} {int(b*255)}")
+			open(d + '/brightness', 'w').write('255')
+		time.sleep(0.05)
+for d in leds:
+	open(d + '/brightness', 'w').write('0')
+print(f"chaser done: {steps} steps x {n} LEDs, restored off")
+PYEOF
+			say "    chaser done, LEDs restored off"
+		fi
 	elif [ "$DEMO" = 1 ]; then
 		manual "LED colour order" "echo '255 0 0' > /sys/class/leds/<multi-led>/multi_intensity; echo 255 > .../brightness"
 	else
