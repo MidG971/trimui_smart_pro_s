@@ -7,27 +7,6 @@ The order and routing for getting this port into mainline Linux, once the device
 boots mainline and each feature is verified on hardware. This is the *execution*
 plan; [`UPSTREAM-READINESS.md`](UPSTREAM-READINESS.md) is the per-item scorecard.
 
-## Where it stands
-
-The board boots mainline on hardware, so submission has started. The **small standalone fixes**
-(pinctrl voltage-withstand, `mmc-pwrseq` missing-reset, `mfd: axp20x` poweroff/restart) go first;
-**CPU-CCU / cpufreq** waits on Andre's A523 CPU-CCU landing; **thermal** follows Kalashnikov's
-two-nvmem-cell THS; and the **display** is the long haul, gated behind the H616 DE33 rework. Per-item
-state in [`UPSTREAM-READINESS.md`](UPSTREAM-READINESS.md).
-
-> **v7.3-rc7 status (Oct 2026).** Two of the tracked series genuinely **landed upstream** and are
-> dropped on 7.3: the **pinctrl voltage-withstand** fix (0032) and the **AXP20x** power-off/restart
-> (0024/0036). The **A523 CPU-CCU** (0014–0020), **THS thermal** (0021–0023), and **audio codec**
-> (0026–0032) were *posted* upstream (Andre's CPU-CCU v3, Kalashnikov THS v6, Chen-Yu's codec) but are
-> **not in v7.3-rc7**, so we **still carry** them — an earlier revision of this note wrongly listed
-> them as merged (verify drops against the actual tree, not against "it was upstreamed"). `build-trimui-kernel.sh`
-> applies the full series and `--forward`-skips whatever is already present, so the recipe is correct
-> either way. **On 7.3 hardware:** THS (0021-0023) + `dts/staging/trimui-thermal.dtsi` are re-applied and
-> **thermals work** (5 zones + pwm-fan). **cpufreq** (CPU-CCU) and **audio** (codec) are currently off on
-> the 7.3 build pending a patch rebase (0017/0018/0020 and 0026-0028/0031 need updating for rc7). Display
-> binds with the mixer `reserved-memory` CMA; `vblank`/`flip_done` per-frame updates are WIP. Still ours:
-> display (DE33), PWM, gamepad, LRADC keys, the small DT, and the out-of-tree AIC8800 (v7.3 cfg80211 delta).
-
 ## The one rule: hardware-tested first
 
 sunxi/upstream culture is **tested-on-hardware-first**. Almost nothing lands before
@@ -74,22 +53,6 @@ already taken here** — is now binding on our submissions:
   tester. Track his fixes; when they merge, they flow into our rebase.
 - **Join `#linux-sunxi` on OFTC** for quick direction before starting work.
 
-**Further guidance (2026-10, from the A733/A523-family review — full digest in the project memory):**
-- **Bindings (Krzysztof):** header filename must match the compatible; clock/reset indices are ABI
-  (start 0/1, contiguous, no placeholder IDs for unexposed clocks); per-variant constraints go inside
-  `allOf:`; keep compatible enums sorted.
-- **CCU:** `0`-suffix single instances; `CLK_IS_CRITICAL` on DMA/MMC/NOR-backing bus clocks; `const`
-  reset maps. Poll PLL lock with `readl_relaxed_poll_timeout_atomic()` — the non-atomic macro stalls
-  when timekeeping is suspended during DVFS → freeze (merged `clk-for-7.4`).
-- **UART:** offset `0xc0` is the RS485 control reg, *not* DLF — the generic auto-probe misdetects it
-  and corrupts the console; refine DLF detection + use the `SKIP_SET_RATE` quirk.
-- **Boot:** some A523 clock + PRCM controls are secure-by-default — BL31 must open the security
-  switches (in TF-A) before Linux can use them.
-- **Pinctrl:** keep the `interrupts` array on the upstream convention; `.irq_banks` must equal the DT
-  interrupt count exactly (too-small silently kills GPIO IRQs on the top bank).
-- **Keep submissions terse;** frame agent-measured HW as a *report*, not `Tested-by`, unless
-  personally verified. **Don't carry** the `sunxi_sram_claim()` memory-ordering patch (NAK'd).
-
 ## Routing (who gets what)
 
 Run `scripts/get_maintainer.pl` on each patch; the table is the shape of it.
@@ -123,12 +86,11 @@ Run `scripts/get_maintainer.pl` on each patch; the table is the shape of it.
      *local* build only.)
    - **USB3** (Kalashnikov) — enable `&combophy`/`&dwc3` + the Trimui GMA340 mux on top.
 4. **The big new drivers** — their own series to their subsystems:
-   - **Display stack** — **NOT urgent, sequenced behind H616.** Upstream wants the **H616 DE33
-     rework merged first**, then A523 follows as a clean extension — *not* a BSP-derived RCQ port.
-     Land it as the **whole chain** (bindings + driver together — maintainers won't take a
-     reverse-engineered binding ahead of a working driver), coordinating with Jernej's rework. A
-     2026-10-09 HW test showed the A523 DE latches via **direct AHB**, so the upstream form **drops
-     the RCQ engine** entirely. Largest/longest review — budget for many revisions.
+   - **Display stack** — **NOT urgent, and sequenced behind H616.** Upstream wants the
+     **H616 DE33 support merged first**, then A523 DE follows as a clean extension —
+     *not* a BSP-derived RCQ port. So upstream = {DSI host variant → combo-PHY → TCON →
+     panel} can go early to DRM, but the **DE3.5 mixer/CRTC waits on H616 DE** landing.
+     Largest, most novel, longest review — budget for many revisions.
    - **Audio codec** → ASoC. **PWM driver** → linux-pwm.
 
 ## Per-submission checklist
@@ -165,3 +127,30 @@ Upstreaming is a **months-long, piece-by-piece loop**: rebase → verify on HW �
 → address review → resend, plus forward-porting as new kernels release. Board DTS,
 LRADC, and LEDC land fast; the display stack is a long haul; AIC8800 rides out-of-tree
 indefinitely.
+
+## Lessons from our own review interactions (2026-10..11) — do not get shot down
+
+Concrete things reviewers/maintainers actually said to us; bake these into every send:
+
+- **Never overstate upstream status** (korewaChino, issue #1): we once claimed the A523
+  pipeline was "in drm-misc-next" — it wasn't; we retracted publicly and reworded the
+  README. Rule: permalink the *actual* commits; if it's ours, say it's ours; a patch
+  that appends a new compatible alongside an upstream one proves it's additive.
+- **Patches must apply cleanly** (korewaChino): patch 0005 had a hand-edited hunk
+  header and failed to apply — regenerate with `diff -u`/`git format-patch`, always
+  verify with `git apply --check` on the stated base.
+- **Display patches wait for a working display** (Jernej Škrabec, iommu thread
+  2026-11-10): don't send DE33/display-dependent fixes until the DE33 driver is merged
+  *and retested*. Hence: our display series is held until the frame-clock-out fix lands
+  (ut-slayer's patches) and is HW-verified — send everything after display works.
+- **Expect sashiko-bot AI review**: it flagged real issues (e.g. missing
+  `cancel_work_sync()` in musb init). Pre-empt it: run the same checks locally.
+- **checkpatch --strict clean** before sending: bindings in their own patches, correct
+  `Signed-off-by:` from the nominal author, no AI/assistant trailers, tabs not spaces,
+  ≤75-col commit lines. (Our series was cleaned to this on 2026-11-13/14.)
+- **Keep original authorship** (ut-slayer, issue #2): when relaying someone else's
+  patches, keep their name (`Signed-off-by:`/`Reported-by:`/`Originally-by:`) — he
+  explicitly asked and thanked us for it.
+- **Test each new -rc on hardware before adopting it** (our own rc2 lesson, 2026-11-14):
+  v7.4-rc2 boot-loops this board even *vanilla* — upstream regression. Don't rebase onto
+  a fresh -rc until it boots the device; stay on the last HW-proven rc otherwise.
