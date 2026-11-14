@@ -342,7 +342,7 @@ t_fel() {
 # ----------------------------------------------------------------------------
 t_sdboot() {
 	begin_test sdboot "Phase 4: first mainline boot from microSD (never eMMC). The microSD is written on the HOST — the device eMMC is never touched."
-	say "  Build on build-host (kernel/build-trimui-kernel.sh) -> Image +"
+	say "  Build on compiler-rock3b (kernel/build-trimui-kernel.sh) -> Image +"
 	say "  sun55i-a523-trimui-smart-pro-s.dtb + modules, then write a boot microSD."
 	say "  WRITE THE SD, NOT YOUR HOST DISK: check lsblk and pick the right /dev/sdX."
 	manual "identify the SD on the host (before writing)" "lsblk   # confirm the microSD node; NOT your system disk"
@@ -734,22 +734,25 @@ t_leds() {
 	begin_test leds "Confirm the 17-LED RGB array and its colour order (grb vs rgb) by driving one LED red/green/blue."
 	cap "ls /sys/class/leds/ 2>/dev/null"
 	cap "ls -d /sys/class/leds/*multi* 2>/dev/null | wc -l | tr -d ' '; echo ' multi-led entries'"
-	_led=""
+	# Drive ALL RGB LEDs through red -> green -> blue (WS2812 sweep), then off.
+	_leds=""; _n=0
 	[ "$DEMO" != 1 ] && for _d in /sys/class/leds/*; do
-		[ -e "$_d/multi_intensity" ] && [ -w "$_d/brightness" ] && { _led=$_d; break; }
+		[ -e "$_d/multi_intensity" ] && [ -w "$_d/brightness" ] && { _leds="$_leds $_d"; _n=$((_n+1)); }
 	done
-	if [ -n "$_led" ]; then
-		_mx=$(cat "$_led/max_brightness" 2>/dev/null); _mx=${_mx:-255}
-		say "  Driving $_led. Watch which physical colour lights up."
-		for _c in "R:255 0 0" "G:0 255 0" "B:0 0 255"; do
-			_lbl=${_c%%:*}; _val=${_c#*:}
-			printf '%s' "$_val" > "$_led/multi_intensity" 2>/dev/null
-			printf '%s' "$_mx" > "$_led/brightness" 2>/dev/null
-			{ printf 'set %s multi_intensity=%s (asked %s)\n' "$_led" "$_val" "$_lbl"; } >> "$TESTBUF"
-			say "    asked for $_lbl -> multi_intensity='$_val'"
-			pause "    What colour is actually lit? (Enter for next)"
+	if [ "$_n" -gt 0 ]; then
+		_mx=255
+		say "  Driving all ${_n} RGB LEDs through red -> green -> blue."
+		for _val in "255 0 0" "0 255 0" "0 0 255"; do
+			for _d in $_leds; do
+				printf '%s' "$_val" > "$_d/multi_intensity" 2>/dev/null
+				printf '%s' "$_mx" > "$_d/brightness" 2>/dev/null
+			done
+			{ printf 'sweep: multi_intensity=%s on %d LEDs\n' "$_val" "$_n"; } >> "$TESTBUF"
+			say "    all LEDs <- '$_val' (R/G/B sweep)"
+			[ "$INTERACTIVE" = 1 ] && pause "    Correct colour visible? (Enter for next)" || sleep 2
 		done
-		printf '0' > "$_led/brightness" 2>/dev/null
+		for _d in $_leds; do printf '0' > "$_d/brightness" 2>/dev/null; done
+		{ printf 'restored brightness=0 on %d LEDs\n' "$_n"; } >> "$TESTBUF"
 	elif [ "$DEMO" = 1 ]; then
 		manual "LED colour order" "echo '255 0 0' > /sys/class/leds/<multi-led>/multi_intensity; echo 255 > .../brightness"
 	else

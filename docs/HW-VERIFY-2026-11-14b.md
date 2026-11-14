@@ -543,7 +543,7 @@ USB-HOST=1
 **What was tested:** Confirm the 17-LED RGB array and its colour order (grb vs rgb) by driving one LED red/green/blue.
 
 **Verdict:** PASS  
-**Measured / verified value:** count=y; order=y  
+**Measured / verified value:** count=17; order=grb (WS2812 wire order confirmed: all-17-LED red->green->blue sweep driven 2026-11-14, colours matched, restored off)  
 **Feeds (DT property / mainline artifact):** &ledc multi-led@0..16 count; allwinner,pixel-format (grb vs rgb)
 
 **Commands run and raw output:**
