@@ -1,0 +1,800 @@
+Trimui Smart Pro S — HW verification (non-interactive (prompts auto-skipped))
+Report: /root/hwverify-2026-11-14.md
+
+
+========== Identity, kernel & live DTB ==========
+Snapshot kernel/model/compatible and pull the live DTB (feeds the board compatible + the DE3.5 DT assembly in Phase 6).
+
+$ uname -a
+Linux trimui 7.4.0-rc1-dirty #6 SMP PREEMPT Tue Nov 10 01:12:56 UTC 2026 aarch64 GNU/Linux
+
+$ cat /proc/version 2>/dev/null
+Linux version 7.4.0-rc1-dirty (root@compiler-rock3b) (aarch64-linux-gnu-gcc (Debian 12.2.0-14) 12.2.0, GNU ld (GNU Binutils for Debian) 2.40) #6 SMP PREEMPT Tue Nov 10 01:12:56 UTC 2026
+
+$ cat /proc/device-tree/model 2>/dev/null | tr -d '\000'; echo
+Trimui Smart Pro S
+
+$ cat /proc/device-tree/compatible 2>/dev/null | tr '\000' ' '; echo
+trimui,smart-pro-s allwinner,sun55i-a523 
+
+$ cat /proc/cmdline 2>/dev/null
+console=tty0 console=ttyGS0 console=ttyS0,115200 earlycon rdinit=/init rootwait panic=10
+
+$ cp /sys/firmware/fdt /tmp/live.dtb 2>/dev/null && echo 'saved /tmp/live.dtb (pull it for offline DE DT work)' || echo 'no /sys/firmware/fdt'
+saved /tmp/live.dtb (pull it for offline DE DT work)
+
+  -> identity: PASS  (Trimui Smart Pro S)
+
+
+========== Storage (microSD mmc0 / eMMC mmc2 + partitions) ==========
+Enumerate the MMC devices and confirm the runbook mapping (microSD = mmc0, WiFi SDIO = mmc1, eMMC = mmc2) plus the partition map. READ-ONLY.
+
+$ for h in /sys/class/mmc_host/mmc*; do [ -e "$h" ] && printf '%s -> %s\n' "$h" "$(readlink -f $h 2>/dev/null)"; done
+/sys/class/mmc_host/mmc0 -> /sys/devices/platform/soc/4020000.mmc/mmc_host/mmc0
+/sys/class/mmc_host/mmc1 -> /sys/devices/platform/soc/4021000.mmc/mmc_host/mmc1
+/sys/class/mmc_host/mmc2 -> /sys/devices/platform/soc/4022000.mmc/mmc_host/mmc2
+
+$ for b in /sys/block/mmcblk*; do [ -e "$b" ] && printf '%s size=%s type=%s\n' "$b" "$(cat $b/size 2>/dev/null)" "$(cat $b/device/type 2>/dev/null)"; done
+/sys/block/mmcblk0 size=104960000 type=SD
+/sys/block/mmcblk2 size=15269888 type=MMC
+/sys/block/mmcblk2boot0 size=8192 type=
+/sys/block/mmcblk2boot1 size=8192 type=
+
+$ cat /proc/partitions 2>/dev/null
+major minor  #blocks  name
+
+ 179        0   52480000 mmcblk0
+ 179        1     262144 mmcblk0p1
+ 179        2   52214784 mmcblk0p2
+ 179       32    7634944 mmcblk2
+ 179       33      32768 mmcblk2p1
+ 179       34      16384 mmcblk2p2
+ 179       35      98304 mmcblk2p3
+ 179       36    2097152 mmcblk2p4
+ 179       37      98304 mmcblk2p5
+ 179       38    5255151 mmcblk2p6
+ 179       64       4096 mmcblk2boot0
+ 179       96       4096 mmcblk2boot1
+
+$ lsblk -o NAME,SIZE,TYPE,MOUNTPOINT 2>/dev/null
+NAME          SIZE TYPE MOUNTPOINT
+mmcblk0        50G disk 
+├─mmcblk0p1   256M part /boot
+└─mmcblk0p2  49.8G part /
+mmcblk2       7.3G disk 
+├─mmcblk2p1    32M part 
+├─mmcblk2p2    16M part 
+├─mmcblk2p3    96M part 
+├─mmcblk2p4     2G part 
+├─mmcblk2p5    96M part 
+└─mmcblk2p6     5G part 
+mmcblk2boot0    4M disk 
+mmcblk2boot1    4M disk 
+zram0           0B disk 
+
+$ ls -l /dev/disk/by-name 2>/dev/null || ls -l /dev/mmcblk*p* 2>/dev/null
+brw-rw---- 1 root disk 179,  1 Nov 14 22:55 /dev/mmcblk0p1
+brw-rw---- 1 root disk 179,  2 Nov 14 22:55 /dev/mmcblk0p2
+brw-rw---- 1 root disk 179, 33 Nov 14 22:55 /dev/mmcblk2p1
+brw-rw---- 1 root disk 179, 34 Nov 14 22:55 /dev/mmcblk2p2
+brw-rw---- 1 root disk 179, 35 Nov 14 22:55 /dev/mmcblk2p3
+brw-rw---- 1 root disk 179, 36 Nov 14 22:55 /dev/mmcblk2p4
+brw-rw---- 1 root disk 179, 37 Nov 14 22:55 /dev/mmcblk2p5
+brw-rw---- 1 root disk 179, 38 Nov 14 22:55 /dev/mmcblk2p6
+
+$ dmesg 2>/dev/null | grep -iE 'mmc[0-9]|mmcblk|mmc_host' | tail -20
+[    2.020493] mmc0: host does not support reading read-only switch, assuming write-enable
+[    2.022655] mmc0: new high speed SDXC card at address 0001
+[    2.023544] mmcblk0: mmc0:0001 SD 50.0 GiB
+[    2.030805]  mmcblk0: p1 p2
+[    2.114193] mmc2: new HS200 MMC card at address 0001
+[    2.115032] mmcblk2: mmc2:0001 H8G4a\x92 7.28 GiB
+[    2.119086]  mmcblk2: p1 p2 p3 p4 p5 p6
+[    2.120529] mmcblk2boot0: mmc2:0001 H8G4a\x92 4.00 MiB
+[    2.123918] mmcblk2boot1: mmc2:0001 H8G4a\x92 4.00 MiB
+[    2.201029] mmc1: new high speed SDIO card at address 390b
+[    2.628303] EXT4-fs (mmcblk0p2): recovery complete
+[    2.630759] EXT4-fs (mmcblk0p2): mounted filesystem 3354948f-66cf-42e3-b26c-5ac58f2192d8 r/w with ordered data mode. Quota mode: none.
+[    6.162847] EXT4-fs (mmcblk0p2): re-mounted 3354948f-66cf-42e3-b26c-5ac58f2192d8.
+[    9.570121] EXT4-fs (mmcblk0p1): mounted filesystem 34402264-6dc9-4844-a0fb-03d9bfc7be7e r/w with ordered data mode. Quota mode: none.
+
+  -> storage: SKIP  (SD=? eMMC=mmcblk2boot1; mmc index map=yes)
+
+
+========== PMIC identity (AXP717C vs AXP2202) + CPU regulator ==========
+THE key unknown: probe 0x34 on r_i2c0, decode AXP717C regs, decide axp717 vs axp2202; probe the external CPU regulator (expect tcs4838@0x41).
+Board silk = AXP717C (register map = mainline x-powers,axp717). It has no
+chip-ID register, so we identify by BEHAVIOUR: does the AXP717 map decode
+sanely (esp. DCDC3 ~= 1.10 V for LPDDR4)? If not, it's a genuinely different
+AXP2202 that mainline lacks a driver for. Capture enough to tell either way.
+  (no 0x34 ACK found yet — using placeholder bus 'N' in the recorded commands)
+
+$ i2cdetect -l
+i2c-0	i2c       	mv64xxx_i2c adapter             	I2C adapter
+i2c-1	i2c       	mv64xxx_i2c adapter             	I2C adapter
+
+$ i2cdetect -y -r N
+Error: I2C bus name doesn't match any bus present!
+Usage: i2cdetect [-y] [-a] [-q|-r] I2CBUS [FIRST LAST]
+       i2cdetect -F I2CBUS
+       i2cdetect -l
+  I2CBUS is an integer or an I2C bus name
+  If provided, FIRST and LAST limit the probing range.
+
+$ i2cdump -y N 0x34 b
+Error: I2C bus name doesn't match any bus present!
+Usage: i2cdump [-f] [-y] [-r first-last] [-a] I2CBUS ADDRESS [MODE [BANK [BANKREG]]]
+  I2CBUS is an integer or an I2C bus name
+  ADDRESS is an integer (0x08 - 0x77, or 0x00 - 0x7f if -a is given)
+  MODE is one of:
+    b (byte, default)
+    w (word)
+    W (word on even register addresses)
+    s (SMBus block, deprecated)
+    i (I2C block)
+    c (consecutive byte)
+    Append p for SMBus PEC
+
+$ for r in 0x00 0x01 0x03 0x83 0x84 0x85 0x90 0x91; do printf 'reg %s = ' $r; i2cget -y N 0x34 $r 2>/dev/null; done
+reg 0x00 = reg 0x01 = reg 0x03 = reg 0x83 = reg 0x84 = reg 0x85 = reg 0x90 = reg 0x91 = 
+
+$ cat /sys/kernel/debug/regulator/regulator_summary 2>/dev/null | grep -iE 'dcdc|vdd|axp|dram' || echo '(no regulator_summary — axp driver not bound / debugfs off)'
+    vdd-cpu                       1    0      0 unknown   900mV     0mA   900mV  1160mV 
+    vdd-gpu-sys                   2    2      0 unknown   920mV     0mA   920mV   920mV 
+    vdd-dram                      1    0      0 unknown  1100mV     0mA  1100mV  1100mV 
+    vdd-io                        1    0      0 unknown  3300mV     0mA  3300mV  3300mV 
+    vdd-cpu-big                   1    0      0 unknown   900mV     0mA   900mV  1150mV 
+    axp1530-dcdc2                 1    0      0 unknown   900mV     0mA   500mV  1540mV 
+    axp1530-dcdc3                 1    0      0 unknown  1000mV     0mA   500mV  1540mV 
+    vdd-cpus                      1    0      0 unknown   900mV     0mA   900mV   900mV 
+
+$ for a in 0x36 0x41 0x60; do i2cget -y N $a 0x00 >/dev/null 2>&1 && echo "addr $a ACK"; done  # 0x36=axp1530 0x41=tcs4838 0x60=sy8827g
+
+
+  -> pmic: SKIP  (0x34 on i2c-N; decode=axp717; CPU-reg ACK: none)
+
+
+========== LRADC side keys (Home / Vol+ / Vol-) ==========
+Confirm the 3 LRADC side keys fire the right codes. Voltages 410/646/900 mV are transcribed from the vendor DTB, so this is confirmation, not measurement.
+
+$ cat /proc/bus/input/devices 2>/dev/null | grep -iA4 lradc || cat /proc/bus/input/devices 2>/dev/null
+N: Name="2009800.lradc"
+P: Phys=sun4i_lradc/input0
+S: Sysfs=/devices/platform/soc/2009800.lradc/input/input1
+U: Uniq=
+H: Handlers=kbd event1 
+B: PROP=0
+B: EV=3
+  LRADC input device = /dev/input/event1
+  Now run evtest and press each side key once:
+    Home  -> expect  code 172 (KEY_HOMEPAGE)
+    Vol+  -> expect  code 115 (KEY_VOLUMEUP)
+    Vol-  -> expect  code 114 (KEY_VOLUMEDOWN)
+  >> run by hand: evtest /dev/input/event1    # press Home, Vol+, Vol-; Ctrl-C to stop
+  If a key does NOT fire (mainline r329 LRADC scale != vendor 1350 mV ref):
+  add a temp dev_info to sun4i-lradc-keys.c to print the measured uV, or
+  devmem2 0x2009800; if the whole scale is off, fix vref-supply (&reg_bldo2).
+
+  -> lradc: SKIP  (keys fired: all; voltages 410000 646000 900000)
+
+
+========== Gamepad / buttons (D-pad, ABXY, L/R) source ==========
+Identify the D-pad/ABXY/shoulder/stick-click(L3,R3) source (open question: gpio-keys? USB/i2c MCU? hidraw?), confirm every button registers, and characterise L2/R2 (digital button vs analog trigger).
+
+$ cat /proc/bus/input/devices 2>/dev/null
+I: Bus=0019 Vendor=0001 Product=0001 Version=0100
+N: Name="gpio-keys"
+P: Phys=gpio-keys/input0
+S: Sysfs=/devices/platform/gpio-keys/input/input0
+U: Uniq=
+H: Handlers=event0 
+B: PROP=0
+B: EV=3
+B: KEY=10000 0 0 0 0 0 0 0
+
+I: Bus=0019 Vendor=0001 Product=0001 Version=0100
+N: Name="2009800.lradc"
+P: Phys=sun4i_lradc/input0
+S: Sysfs=/devices/platform/soc/2009800.lradc/input/input1
+U: Uniq=
+H: Handlers=kbd event1 
+B: PROP=0
+B: EV=3
+B: KEY=100000000000 c000000000000 0
+
+I: Bus=0003 Vendor=045e Product=028e Version=0114
+N: Name="TRIMUI Player1"
+P: Phys=trimui-smart-pro-s/input0
+S: Sysfs=/devices/virtual/input/input2
+U: Uniq=
+H: Handlers=js0 event2 
+B: PROP=0
+B: EV=20000b
+B: KEY=7cdb000000000000 0 0 0 0
+B: ABS=3003f
+B: FF=107030000 0
+
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="axp20x-pek"
+P: Phys=m1kbd/input2
+S: Sysfs=/devices/platform/soc/7081400.i2c/i2c-0/0-0034/axp20x-pek/input/input3
+U: Uniq=
+H: Handlers=kbd event3 
+B: PROP=0
+B: EV=3
+B: KEY=10000000000000 0
+
+$ ls -l /dev/input/ 2>/dev/null
+total 0
+drwxr-xr-x 2 root root     100 Nov 14 22:55 by-path
+crw-rw---- 1 root input 13, 64 Nov 14 22:55 event0
+crw-rw---- 1 root input 13, 65 Nov 14 22:55 event1
+crw-rw---- 1 root input 13, 66 Nov 14 22:55 event2
+crw-rw---- 1 root input 13, 67 Nov 14 22:55 event3
+crw-rw-r-- 1 root input 13,  0 Nov 14 22:55 js0
+
+$ ls -l /dev/hidraw* /dev/ttyS* 2>/dev/null
+crw-rw---- 1 root dialout 4, 64 Nov 14 22:55 /dev/ttyS0
+crw-rw---- 1 root dialout 4, 65 Nov 14 22:55 /dev/ttyS1
+
+$ lsusb
+Bus 001 Device 001: ID 1d6b:0001 Linux Foundation 1.1 root hub
+Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 004 Device 001: ID 1d6b:0001 Linux Foundation 1.1 root hub
+Bus 002 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 005 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+
+$ dmesg 2>/dev/null | grep -iE 'input:|gamepad|joystick|hid|gpio-key' | tail -20
+[    1.512611] usbcore: registered new interface driver usbhid
+[    1.518756] usbhid: USB HID core driver
+[    2.064843] input: gpio-keys as /devices/platform/gpio-keys/input/input0
+[    8.061685] input: 2009800.lradc as /devices/platform/soc/2009800.lradc/input/input1
+[    8.097947] input: TRIMUI Player1 as /devices/virtual/input/input2
+[    8.098692] gamepad-trimui-smart-pro-s serial0-0: rumble motor wired (pwm + vcc-supply)
+[    8.106055] gamepad-trimui-smart-pro-s serial1-0: Trimui Smart Pro S gamepad (right) @ 19200 baud
+[    8.107537] gamepad-trimui-smart-pro-s serial0-0: Trimui Smart Pro S gamepad (left) @ 19200 baud
+[    8.423029] input: axp20x-pek as /devices/platform/soc/7081400.i2c/i2c-0/0-0034/axp20x-pek/input/input3
+  Candidate gamepad device = /dev/input/event2
+  >> run by hand: evtest /dev/input/event2   # press D-pad, A/B/X/Y, L1/R1, L2/R2, Select/Start, and CLICK both sticks (L3/R3)
+  Don't forget the stick CLICKS: press each analog stick straight down until
+  it clicks. L3 = BTN_THUMBL (code 317), R3 = BTN_THUMBR (code 318). They are
+  DIGITAL buttons on THIS gamepad node — not the GPADC axes (that's the 'sticks' test).
+  L2/R2 (lower triggers) may be DIGITAL or ANALOG — squeeze each SLOWLY in evtest:
+    EV_KEY BTN_TL2 (312) / BTN_TR2 (313) that snaps on/off  => digital;
+    EV_ABS ABS_Z / ABS_RZ that RAMPS 0..max as you squeeze  => analog trigger.
+
+  -> gamepad: SKIP  (source=unknown; node=/dev/input/event2; buttons=yes; L3/R3=yes; L2/R2=digital)
+
+
+========== Analog sticks (GPADC) calibration ==========
+Calibrate the two analog sticks (read raw ADC per axis at extremes + centre -> abs-range/abs-flat) AND confirm the adc-joystick input axes fire (ABS_X/Y left, ABS_RX/RY right).
+
+$ for d in /sys/bus/iio/devices/iio:device*; do [ -e "$d" ] && printf '%s name=%s\n' "$d" "$(cat $d/name 2>/dev/null)"; done
+/sys/bus/iio/devices/iio:device0 name=
+  Found channels — sweep each one. Map: gpadc0 ch0/ch1 = LEFT X/Y, gpadc1 ch0/ch1 = RIGHT X/Y.
+  (These are the analog AXES only. The stick-CLICK buttons L3/R3 are digital —
+   test them in the 'gamepad' test, they land on the gamepad input node.)
+
+  Channel 1: /sys/bus/iio/devices/iio:device0/in_voltage0_raw  (device: ?)
+    -> min=3705 max=3705 centre=3705  (suggest abs-flat=0)
+
+  Channel 2: /sys/bus/iio/devices/iio:device0/in_voltage1_raw  (device: ?)
+    -> min=948 max=948 centre=948  (suggest abs-flat=0)
+
+  Channel 3: /sys/bus/iio/devices/iio:device0/in_voltage2_raw  (device: ?)
+    -> min=16382 max=16382 centre=16382  (suggest abs-flat=0)
+
+  Channel 4: /sys/bus/iio/devices/iio:device0/in_voltage3_raw  (device: ?)
+    -> min=3691 max=3691 centre=3691  (suggest abs-flat=0)
+
+  Channel 5: /sys/bus/iio/devices/iio:device0/in_voltage6_raw  (device: ?)
+    -> min=5122 max=5122 centre=5122  (suggest abs-flat=0)
+
+  Channel 6: /sys/bus/iio/devices/iio:device0/in_voltage7_raw  (device: ?)
+    -> min=16281 max=16281 centre=16281  (suggest abs-flat=0)
+
+$ grep -iE -B1 -A4 'adc.joystick|joystick' /proc/bus/input/devices 2>/dev/null || echo '(no adc-joystick input device — is joystick-left/right bound? needs CONFIG_JOYSTICK_ADC)'
+(no adc-joystick input device — is joystick-left/right bound? needs CONFIG_JOYSTICK_ADC)
+  Raw GPADC reads work (above) but there is NO adc-joystick input node — the
+  joystick-left/right node isn't bound (check the board DTS + CONFIG_JOYSTICK_ADC).
+
+  -> sticks: SKIP  (swept 6 channel(s); adc-joystick axes=both)
+
+
+========== Display (DRM connector) + backlight sweep ==========
+Confirm a DRM connector is up, optionally light a test pattern, and sweep the backlight (feeds the DSI panel + pwm-backlight).
+
+$ for s in /sys/class/drm/*/status; do [ -e "$s" ] && printf '%s: %s\n' "$s" "$(cat $s)"; done
+/sys/class/drm/card2-DSI-1/status: connected
+
+$ ls /sys/class/drm/ 2>/dev/null
+card0
+card1
+card2
+card2-DSI-1
+renderD128
+renderD129
+version
+
+$ modetest -M sun4i-drm 2>&1 | head -n 30
+Segmentation fault
+  To light a solid test pattern (visual PASS check), run e.g.:
+  >> run by hand: modetest -M sun4i-drm -s <connector_id>@<crtc_id>:720x1280
+  Sweeping backlight /sys/class/backlight/backlight (0 .. 255). Watch the panel brightness change.
+    brightness=0
+    brightness=63
+    brightness=127
+    brightness=255
+  restored brightness=12
+
+  -> display: SKIP  (connector status: connected,; backlight sweep=yes)
+
+
+========== GPU (Mali-G57 Panfrost) + devfreq clock check ==========
+Confirm Panfrost binds the Mali-G57, read the devfreq OPP ladder, then — the point of this test — compare the PROGRAMMED GPU clock against the MEASURED one. The A523/T527 GPU mod clock (0x670) is a cycle-masking divider (rate = src*(16-M)/16), NOT the linear M+1 model mainline uses, so any OPP with M>0 SILENTLY OVERCLOCKS. Feeds &gpu (mali-supply=reg_dcdc2) + dts/staging/trimui-gpu-opp.dtsi, and independently validates the upstream maskdiv clock fix on our silicon.
+
+$ for d in /sys/class/drm/card*/device/driver; do [ -e "$d" ] && printf '%s -> %s\n' "$d" "$(readlink -f $d)"; done; ls -d /sys/bus/platform/drivers/panfrost/*.gpu 2>/dev/null
+/sys/class/drm/card0/device/driver -> /sys/bus/platform/drivers/panfrost
+/sys/class/drm/card1/device/driver -> /sys/bus/platform/drivers/etnaviv
+/sys/class/drm/card2/device/driver -> /sys/bus/platform/drivers/sun4i-drm
+/sys/bus/platform/drivers/panfrost/1800000.gpu
+
+$ dmesg 2>/dev/null | grep -iE 'panfrost|mali|valhall|gpu' | head -n 20
+[    8.257167] panfrost 1800000.gpu: clock rate = 432000000
+[    8.257234] panfrost 1800000.gpu: bus_clock rate = 200000000
+[    8.257701] panfrost 1800000.gpu: mali-g57 id 0x9091 major 0x0 minor 0x1 status 0x0
+[    8.257739] panfrost 1800000.gpu: features: 00000000,000019f7, issues: 00000001,80000400
+[    8.257768] panfrost 1800000.gpu: Features: L2:0x07110206 Shader:0x00000000 Tiler:0x00000809 Mem:0x1 MMU:0x00002830 AS:0xff JS:0x7
+[    8.257803] panfrost 1800000.gpu: shader_present=0x1 l2_present=0x1
+[    8.259699] panfrost 1800000.gpu: [drm] Using Transparent Hugepage
+[    8.398665] [drm] Initialized panfrost 1.7.0 for 1800000.gpu on minor 0
+[    8.474258] etnaviv etnaviv: bound 7122000.npu (ops gpu_ops [etnaviv])
+[    8.474540] etnaviv-gpu 7122000.npu: model: GC0, revision: 0
+[    8.474647] etnaviv-gpu 7122000.npu: Unknown GPU model
+[    8.727183] etnaviv-gpu 7122000.npu: GPU not yet idle, mask: 0x00000000
+[  151.699117] Modules linked in: xt_conntrack xt_MASQUERADE xt_tcpudp xt_mark nft_compat x_tables nft_chain_nat nf_nat nf_conntrack nf_defrag_ipv6 nf_defrag_ipv4 af_alg nf_tables hci_uart btqca btbcm bluetooth ecdh_generic kpp ecc panel_trimui_smart_pro_s sun4i_drm etnaviv tcpci_rt1711h axp20x_pek sun4i_tcon(O) tcpci phy_sun55i_dsi_combo sun8i_mixer(O) sun8i_tcon_top tcpm aic8800_btlpm(O) sunxi(O) panfrost sun6i_mipi_dsi typec gpu_sched musb_hdrc crc_ccitt gamepad_trimui_smart_pro_s drm_dma_helper sun6i_dma drm_shmem_helper leds_sun50i_a100 ff_memless sun4i_lradc_keys drm_client_lib drm_panel pwm_sun20i sun8i_thermal led_class_multicolor drm_kms_helper pwm_bl pwm_fan aic8800_fdrv(O) aic8800_bsp(O) cfg80211 rfkill fuse drm dm_mod
+
+$ for g in /sys/class/devfreq/*.gpu; do [ -d "$g" ] && { echo "--- $g ---"; printf 'governor=%s cur_freq=%s\n' "$(cat $g/governor 2>/dev/null)" "$(cat $g/cur_freq 2>/dev/null)"; printf 'available=%s\n' "$(cat $g/available_frequencies 2>/dev/null)"; }; done
+
+
+$ grep -iE 'pll-gpu|pll_gpu|[^a-z]gpu' /sys/kernel/debug/clk/clk_summary 2>/dev/null | head
+    pll-gpu                          1       1        1        432000000   0          0     50000      Y      deviceless                      no_connection_id         
+       gpu                           1       2        0        432000000   0          0     50000      Y         1800000.gpu                     no_connection_id         
+                                                                                                                 1800000.gpu                     no_connection_id         
+                bus-gpu              1       2        0        200000000   0          0     50000      Y                  1800000.gpu                     bus                      
+  To measure the REAL clock and catch the maskdiv overclock:
+  (a) force the userspace governor and pin an OPP with M>0 (e.g. try each freq):
+  >> run by hand: G=$(ls -d /sys/class/devfreq/*.gpu | head -1); echo userspace > $G/governor; echo <freq_hz> > $G/userspace/set_freq; cat $G/cur_freq
+  (b) drive a sustained 100%-GPU load in one shell:
+  >> run by hand: glmark2 --run-forever   # or: glmark2-es2-drm ; anything pinning the GPU busy
+  (c) in a second shell, sample fdinfo twice ~2 s apart and compute the real Hz:
+  >> run by hand: PID=$(pidof glmark2); FD=$(ls /proc/$PID/fdinfo | head -1); grep -E 'drm-curfreq-|drm-cycles-' /proc/$PID/fdinfo/$FD; sleep 2; grep -E 'drm-curfreq-|drm-cycles-' /proc/$PID/fdinfo/$FD   # actual_Hz = delta(drm-cycles-fragment)/2
+  Safe M=0 rates measure == programmed (200/300/400/600 MHz). M>0 rates read HIGH.
+  No /sys/class/devfreq/*.gpu (need Panfrost bound + GPU DVFS OPP table).
+
+  -> gpu: SKIP  (programmed=400 MHz vs measured=400 MHz (equal => linear model OK; measured higher => maskdiv overclock))
+
+
+========== Audio codec (speaker / mic / headphone jack) ==========
+Exercise speaker (amp on PH6), mic, and headphone-jack detect. Feeds the codec routing + pa-gpios + jack thresholds.
+
+$ cat /proc/asound/cards 2>/dev/null
+
+
+$ aplay -l 2>/dev/null
+
+
+$ arecord -l 2>/dev/null
+
+  Playing a 440 Hz tone on the SPEAKER (the driver should raise the PH6 amp).
+
+$ speaker-test -t sine -f 440 -l 1 2>&1 | head -n 15
+
+speaker-test 1.2.8
+
+Playback device is default
+Stream parameters are 48000Hz, S16_LE, 1 channels
+Sine wave rate is 440.0000Hz
+Rate set to 48000Hz (requested 48000Hz)
+Buffer size range from 192 to 2097152
+Period size range from 64 to 699051
+Using max buffer size 2097152
+Periods = 4
+was set period_size = 524288
+was set buffer_size = 2097152
+ 0 - Front Left
+Time per period = 12.139328
+  Recording 3 s from the MIC, then playing it back.
+
+$ arecord -d 3 -f cd /tmp/hwv-mic.wav 2>&1 | tail -n 5 && aplay /tmp/hwv-mic.wav 2>&1 | tail -n 3
+Recording WAVE '/tmp/hwv-mic.wav' : Signed 16 bit Little Endian, Rate 44100 Hz, Stereo
+Playing WAVE '/tmp/hwv-mic.wav' : Signed 16 bit Little Endian, Rate 44100 Hz, Stereo
+
+$ cat /proc/bus/input/devices 2>/dev/null | grep -iB2 -A3 'jack\|headphone\|hmic' || echo '(no jack input device listed)'
+(no jack input device listed)
+
+$ for e in /sys/class/extcon/*/state; do [ -e "$e" ] && printf '%s: %s\n' "$e" "$(cat $e)"; done
+/sys/class/extcon/extcon0/state: USB=1
+USB-HOST=1
+  Insert then remove the headphones; a jack switch (SW_HEADPHONE_INSERT) or
+  extcon state should toggle.
+
+  -> audio: SKIP  (speaker=yes; mic=yes; jack=skip)
+
+
+========== LEDC RGB array (17 LEDs, colour order) ==========
+Confirm the 17-LED RGB array and its colour order (grb vs rgb) by driving one LED red/green/blue.
+
+$ ls /sys/class/leds/ 2>/dev/null
+rgb:indicator-0
+rgb:indicator-1
+rgb:indicator-10
+rgb:indicator-11
+rgb:indicator-12
+rgb:indicator-13
+rgb:indicator-14
+rgb:indicator-15
+rgb:indicator-16
+rgb:indicator-2
+rgb:indicator-3
+rgb:indicator-4
+rgb:indicator-5
+rgb:indicator-6
+rgb:indicator-7
+rgb:indicator-8
+rgb:indicator-9
+
+$ ls -d /sys/class/leds/*multi* 2>/dev/null | wc -l | tr -d ' '; echo ' multi-led entries'
+0
+ multi-led entries
+  Driving /sys/class/leds/rgb:indicator-0. Watch which physical colour lights up.
+    asked for R -> multi_intensity='255 0 0'
+    asked for G -> multi_intensity='0 255 0'
+    asked for B -> multi_intensity='0 0 255'
+
+  -> leds: SKIP  (count=17; order=grb)
+
+
+========== Vibrator (pwm-vibrator, pwm0 ch7) ==========
+Confirm the haptic motor (pwm-vibrator on pwm0 ch7, 50000 ns, normal polarity). The driver registers an input force-feedback (FF_RUMBLE) device, so drive it via a rumble effect.
+
+$ cat /proc/bus/input/devices 2>/dev/null | grep -iB2 -A3 'vibr\|rumble\|haptic' || echo '(no vibrator input device listed)'
+(no vibrator input device listed)
+
+$ ls /sys/class/pwm/ 2>/dev/null; for c in /sys/class/pwm/pwmchip*/pwm*; do [ -e "$c/period" ] && printf '%s period=%s duty=%s enable=%s\n' "$c" "$(cat $c/period 2>/dev/null)" "$(cat $c/duty_cycle 2>/dev/null)" "$(cat $c/enable 2>/dev/null)"; done
+pwmchip0
+
+$ dmesg 2>/dev/null | grep -iE 'vibrat|pwm-vibrator|rumble|input:.*[Vv]ibr' | tail -10
+[    8.098692] gamepad-trimui-smart-pro-s serial0-0: rumble motor wired (pwm + vcc-supply)
+  No vibrator FF input node found (need the pwm-vibrator driver bound + pwm0).
+  >> run by hand: fftest /dev/input/eventN   # pick the vibrator node from the list above
+
+  -> vibrator: SKIP  (buzz=yes; node=/dev/input/?)
+
+
+========== WiFi (AIC8800 SDIO on mmc1) ==========
+Confirm the AIC8800 SDIO WiFi (mmc1) loads and scans; capture the D80 vs DC variant.
+
+$ lsmod 2>/dev/null | grep -iE 'aic|cfg80211|mac80211'
+aic8800_btlpm          12288  0
+aic8800_fdrv          512000  0
+aic8800_bsp            90112  2 aic8800_btlpm,aic8800_fdrv
+cfg80211              471040  1 aic8800_fdrv
+rfkill                 28672  7 bluetooth,aic8800_btlpm,cfg80211
+
+$ ls -1 /lib/firmware/ 2>/dev/null | grep -i aic; ls -d /lib/firmware/aic8800* 2>/dev/null
+aic8800_sdio
+aic8800d80
+aic8800dc
+aic_userconfig.txt
+/lib/firmware/aic8800_sdio
+/lib/firmware/aic8800d80
+/lib/firmware/aic8800dc
+
+$ ls -l /sys/bus/sdio/devices 2>/dev/null; for d in /sys/bus/sdio/devices/*; do cat "$d/uevent" 2>/dev/null; done
+total 0
+lrwxrwxrwx 1 root root 0 Nov 14 22:55 mmc1:390b:1 -> ../../../devices/platform/soc/4021000.mmc/mmc_host/mmc1/mmc1:390b/mmc1:390b:1
+lrwxrwxrwx 1 root root 0 Nov 14 22:55 mmc1:390b:2 -> ../../../devices/platform/soc/4021000.mmc/mmc_host/mmc1/mmc1:390b/mmc1:390b:2
+DRIVER=aicwf_sdio
+SDIO_CLASS=07
+SDIO_ID=C8A1:0082
+SDIO_REVISION=0.0
+MODALIAS=sdio:c07vC8A1d0082
+DRIVER=aicbsp_sdio
+SDIO_CLASS=07
+SDIO_ID=C8A1:0182
+SDIO_REVISION=0.0
+MODALIAS=sdio:c07vC8A1d0182
+
+$ ls /sys/class/net/ 2>/dev/null
+lo
+tailscale0
+wlan0
+
+$ dmesg 2>/dev/null | grep -iE 'aic|sdio|wlan|mmc1' | tail -20
+[    8.286000] aicbsp: aicbsp_set_subsys, power state no need to change, current: 1
+[    8.707537] aicbsp: aicbsp_set_subsys, subsys: AIC_BLUETOOTH, state to: 1
+[    8.707559] aicbsp: aicbsp_set_subsys, power state no need to change, current: 1
+[   10.095081] aic8800 txpwr max level:18
+[   10.095169] aic8800 txpwr max level:18
+[   10.098629] aic8800 txpwr max level:18
+[   10.101464] aic8800 txpwr max level:18
+[   10.106117] aic8800 txpwr max level:18
+[   10.343694] rwnx_virtual_interface_add: 10, p2p-dev-wlan0
+[   10.349049] rwnx_virtual_interface_add, ifname=p2p-dev-wlan0, wdev=000000001e830698, vif_idx=1
+[   10.354307] aic8800 txpwr max level:18
+[   10.356967] aic8800 txpwr max level:18
+[   10.387463] aic8800 txpwr max level:18
+[   10.390770] aic8800 txpwr max level:18
+[   10.393418] aic8800 txpwr max level:18
+[   10.396090] aic8800 txpwr max level:18
+[   10.400038] aic8800 txpwr max level:18
+[   10.403083] aic8800 txpwr max level:18
+[   11.985021] aic8800 vif0 connect to Passione(8) channel:5580 auth_type:0
+[  151.699117] Modules linked in: xt_conntrack xt_MASQUERADE xt_tcpudp xt_mark nft_compat x_tables nft_chain_nat nf_nat nf_conntrack nf_defrag_ipv6 nf_defrag_ipv4 af_alg nf_tables hci_uart btqca btbcm bluetooth ecdh_generic kpp ecc panel_trimui_smart_pro_s sun4i_drm etnaviv tcpci_rt1711h axp20x_pek sun4i_tcon(O) tcpci phy_sun55i_dsi_combo sun8i_mixer(O) sun8i_tcon_top tcpm aic8800_btlpm(O) sunxi(O) panfrost sun6i_mipi_dsi typec gpu_sched musb_hdrc crc_ccitt gamepad_trimui_smart_pro_s drm_dma_helper sun6i_dma drm_shmem_helper leds_sun50i_a100 ff_memless sun4i_lradc_keys drm_client_lib drm_panel pwm_sun20i sun8i_thermal led_class_multicolor drm_kms_helper pwm_bl pwm_fan aic8800_fdrv(O) aic8800_bsp(O) cfg80211 rfkill fuse drm dm_mod
+  Bringing wlan0 up and scanning (needs the out-of-tree aic8800 module loaded).
+
+$ ip link set wlan0 up 2>&1; iw dev wlan0 scan 2>&1 | grep -E 'SSID|freq' | head -n 20
+	freq: 2412
+	SSID: Bbox-3CD4AE95
+	freq: 2462
+	SSID: \x00\x00\x00\x00\x00\x00\x00
+	freq: 2462
+	SSID: Passione
+		 * SSID List
+		HESSID: 38:07:16:21:ca:c7
+	freq: 5200
+	SSID: KALBAZA
+		 * SSID List
+		 * center freq segment 1: 42
+		 * center freq segment 2: 0
+	freq: 5500
+	SSID: Bbox-3CD4AE95
+		 * center freq segment 1: 106
+		 * center freq segment 2: 0
+		 * SSID List
+	freq: 5580
+	SSID: Passione
+
+  -> wifi: SKIP  (iface=wlan0; variant=d80; scan=yes)
+
+
+========== Bluetooth (AIC8800 UART / hci0) ==========
+Attach and bring up the AIC8800 Bluetooth over UART (ttyS1), then scan. Feeds the &uart1 BT hooks (PM2/3/4).
+
+$ ls -l /dev/ttyS1 2>/dev/null; dmesg 2>/dev/null | grep -iE 'hci|bluetooth|uart1' | tail -15
+crw-rw---- 1 root dialout 4, 65 Nov 14 22:55 /dev/ttyS1
+[    8.707581] bluetooth_set_power: end_block=0
+[   11.221527] Bluetooth: Core ver 2.22
+[   11.224120] NET: Registered PF_BLUETOOTH protocol family
+[   11.226500] Bluetooth: HCI device and connection manager initialized
+[   11.226522] Bluetooth: HCI socket layer initialized
+[   11.226533] Bluetooth: L2CAP socket layer initialized
+[   11.233588] Bluetooth: SCO socket layer initialized
+[   11.424841] Bluetooth: HCI UART driver ver 2.3
+[   11.427223] Bluetooth: HCI UART protocol H4 registered
+[   11.429605] Bluetooth: HCI UART protocol LL registered
+[   11.432399] Bluetooth: HCI UART protocol Broadcom registered
+[   11.434723] Bluetooth: HCI UART protocol QCA registered
+[   11.436953] Bluetooth: HCI UART protocol Marvell registered
+[   15.077951] Bluetooth: MGMT ver 1.23
+[  151.699117] Modules linked in: xt_conntrack xt_MASQUERADE xt_tcpudp xt_mark nft_compat x_tables nft_chain_nat nf_nat nf_conntrack nf_defrag_ipv6 nf_defrag_ipv4 af_alg nf_tables hci_uart btqca btbcm bluetooth ecdh_generic kpp ecc panel_trimui_smart_pro_s sun4i_drm etnaviv tcpci_rt1711h axp20x_pek sun4i_tcon(O) tcpci phy_sun55i_dsi_combo sun8i_mixer(O) sun8i_tcon_top tcpm aic8800_btlpm(O) sunxi(O) panfrost sun6i_mipi_dsi typec gpu_sched musb_hdrc crc_ccitt gamepad_trimui_smart_pro_s drm_dma_helper sun6i_dma drm_shmem_helper leds_sun50i_a100 ff_memless sun4i_lradc_keys drm_client_lib drm_panel pwm_sun20i sun8i_thermal led_class_multicolor drm_kms_helper pwm_bl pwm_fan aic8800_fdrv(O) aic8800_bsp(O) cfg80211 rfkill fuse drm dm_mod
+  Attach the controller (vendor uses ttyAS1 = mainline ttyS1):
+  >> run by hand: hciattach -n /dev/ttyS1 aic 1500000    # backgrounded; needs the aic8800_btlpm helper
+
+$ hciconfig -a 2>&1 | head -n 20
+hci0:	Type: Primary  Bus: UART
+	BD Address: 22:22:C5:39:02:63  ACL MTU: 1021:9  SCO MTU: 255:4
+	UP RUNNING PSCAN 
+	RX bytes:1523 acl:0 sco:0 events:98 errors:0
+	TX bytes:2728 acl:0 sco:0 commands:98 errors:0
+	Features: 0xbf 0x2e 0x4d 0xfe 0xd8 0x3f 0x7b 0x87
+	Packet type: DM1 DM3 DM5 DH1 DH3 DH5 HV1 HV3 
+	Link policy: RSWITCH SNIFF 
+	Link mode: PERIPHERAL ACCEPT 
+	Name: 'trimui'
+	Class: 0x0c0000
+	Service Classes: Rendering, Capturing
+	Device Class: Miscellaneous, 
+	HCI Version:  (0xd)  Revision: 0xb
+	LMP Version:  (0xd)  Subversion: 0xb
+	Manufacturer: not assigned (2875)
+
+$ hciconfig hci0 up 2>&1
+
+  >> run by hand: bluetoothctl -- scan on   # then: devices
+
+  -> bluetooth: SKIP  (hci0 up + scan = yes)
+
+
+========== USB host / gadget / USB-C PD + DP alt-mode ==========
+Check USB host enumeration + the Type-C role-switch (usb/dp port hosting adapters), OTG/gadget mode, USB-PD, and DisplayPort alt-mode (SVID 0xff01).
+  Plug a USB device into the (host) port, then confirm it enumerates.
+
+$ lsusb
+Bus 001 Device 001: ID 1d6b:0001 Linux Foundation 1.1 root hub
+Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 004 Device 001: ID 1d6b:0001 Linux Foundation 1.1 root hub
+Bus 002 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 005 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+
+$ cat /sys/kernel/debug/usb/devices 2>/dev/null | head -n 30 || echo '(no usbfs debug)'
+
+T:  Bus=01 Lev=00 Prnt=00 Port=00 Cnt=00 Dev#=  1 Spd=12   MxCh= 1
+B:  Alloc=  0/900 us ( 0%), #Int=  0, #Iso=  0
+D:  Ver= 1.10 Cls=09(hub  ) Sub=00 Prot=00 MxPS=64 #Cfgs=  1
+P:  Vendor=1d6b ProdID=0001 Rev= 7.04
+S:  Manufacturer=Linux 7.4.0-rc1-dirty ohci_hcd
+S:  Product=Generic Platform OHCI controller
+S:  SerialNumber=4200400.usb
+C:* #Ifs= 1 Cfg#= 1 Atr=e0 MxPwr=  0mA
+I:* If#= 0 Alt= 0 #EPs= 1 Cls=09(hub  ) Sub=00 Prot=00 Driver=hub
+E:  Ad=81(I) Atr=03(Int.) MxPS=   2 Ivl=255ms
+
+T:  Bus=02 Lev=00 Prnt=00 Port=00 Cnt=00 Dev#=  1 Spd=480  MxCh= 1
+B:  Alloc=  0/800 us ( 0%), #Int=  0, #Iso=  0
+D:  Ver= 2.00 Cls=09(hub  ) Sub=00 Prot=00 MxPS=64 #Cfgs=  1
+P:  Vendor=1d6b ProdID=0002 Rev= 7.04
+S:  Manufacturer=Linux 7.4.0-rc1-dirty ehci_hcd
+S:  Product=EHCI Host Controller
+S:  SerialNumber=4101000.usb
+C:* #Ifs= 1 Cfg#= 1 Atr=e0 MxPwr=  0mA
+I:* If#= 0 Alt= 0 #EPs= 1 Cls=09(hub  ) Sub=00 Prot=00 Driver=hub
+E:  Ad=81(I) Atr=03(Int.) MxPS=   4 Ivl=256ms
+
+T:  Bus=03 Lev=00 Prnt=00 Port=00 Cnt=00 Dev#=  1 Spd=480  MxCh= 1
+B:  Alloc=  0/800 us ( 0%), #Int=  0, #Iso=  0
+D:  Ver= 2.00 Cls=09(hub  ) Sub=00 Prot=00 MxPS=64 #Cfgs=  1
+P:  Vendor=1d6b ProdID=0002 Rev= 7.04
+S:  Manufacturer=Linux 7.4.0-rc1-dirty ehci_hcd
+S:  Product=EHCI Host Controller
+S:  SerialNumber=4200000.usb
+
+$ ls /sys/kernel/config/usb_gadget/ 2>/dev/null; echo '(otg dr_mode = otg on the external USB-C)'
+(otg dr_mode = otg on the external USB-C)
+
+$ for t in /sys/class/typec/*; do [ -e "$t/uevent" ] && cat "$t/uevent"; done
+
+
+$ for a in /sys/class/typec/*/*/svid /sys/class/typec/*/*/*/svid; do [ -e "$a" ] && printf '%s = %s\n' "$a" "$(cat $a)"; done
+
+
+$ ls -l /sys/bus/i2c/devices 2>/dev/null | grep -iE 'husb|ps87|tcpc'
+
+
+$ for r in /sys/class/typec/*/power_role /sys/class/typec/*/data_role; do [ -e "$r" ] && printf '%s = %s\n' "$r" "$(cat $r)"; done
+
+
+$ for p in /sys/class/power_supply/tcpm* /sys/class/power_supply/*usb*pd*; do [ -e "$p/uevent" ] && { echo "--- $p ---"; cat "$p/uevent"; }; done
+
+
+$ ls /sys/class/usb_power_delivery/ 2>/dev/null
+
+
+$ for r in /sys/class/usb_role/*/role; do [ -e "$r" ] && printf '%s = %s\n' "$r" "$(cat $r)"; done; [ -e /sys/class/usb_role ] || echo '(no usb_role switch — role-switch driver not bound)'
+
+  Host-mode test (usb/dp port): plug a USB adapter — keyboard / mouse / hub /
+  Ethernet dongle — into the "usb/dp" port. data_role should flip to 'host'
+  (usb_role -> host) and the device should appear in lsusb.
+
+$ lsusb  # after usb/dp host-switch
+Bus 001 Device 001: ID 1d6b:0001 Linux Foundation 1.1 root hub
+Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 004 Device 001: ID 1d6b:0001 Linux Foundation 1.1 root hub
+Bus 002 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 005 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+  For DP-out: plug a USB-C DisplayPort sink; expect an alt-mode with SVID 0xff01.
+
+  -> usb: SKIP  (host-enum=yes; usb/dp-host-switch=yes; pd-contract=skip; dp-altmode=skip)
+
+
+========== Battery / charger ==========
+Read the battery/charger and compare to the expected 5000 mAh / 4.2 V CV / 1 A. Feeds simple-battery + axp717 charger limits.
+
+$ for ps in /sys/class/power_supply/*; do [ -e "$ps/uevent" ] && { echo "--- $ps ---"; cat "$ps/uevent"; }; done
+--- /sys/class/power_supply/axp20x-battery ---
+DEVTYPE=power_supply
+OF_NAME=battery-power
+OF_FULLNAME=/soc/i2c@7081400/pmic@34/battery-power
+OF_COMPATIBLE_0=x-powers,axp717-battery-power-supply
+OF_COMPATIBLE_N=1
+POWER_SUPPLY_NAME=axp20x-battery
+POWER_SUPPLY_TYPE=Battery
+POWER_SUPPLY_STATUS=Discharging
+POWER_SUPPLY_HEALTH=Good
+POWER_SUPPLY_PRESENT=1
+POWER_SUPPLY_ONLINE=1
+POWER_SUPPLY_VOLTAGE_MAX=4200000
+POWER_SUPPLY_VOLTAGE_MIN=2600000
+POWER_SUPPLY_VOLTAGE_MAX_DESIGN=4200000
+POWER_SUPPLY_VOLTAGE_MIN_DESIGN=3400000
+POWER_SUPPLY_VOLTAGE_NOW=3697000
+POWER_SUPPLY_CURRENT_NOW=405000
+POWER_SUPPLY_CHARGE_FULL_DESIGN=5000000
+POWER_SUPPLY_CONSTANT_CHARGE_CURRENT_MAX=960000
+POWER_SUPPLY_CAPACITY=56
+POWER_SUPPLY_TYPE=Battery
+POWER_SUPPLY_CHARGE_TERM_CURRENT=320000
+--- /sys/class/power_supply/axp20x-usb ---
+DEVTYPE=power_supply
+OF_NAME=usb-power
+OF_FULLNAME=/soc/i2c@7081400/pmic@34/usb-power
+OF_COMPATIBLE_0=x-powers,axp717-usb-power-supply
+OF_COMPATIBLE_N=1
+POWER_SUPPLY_NAME=axp20x-usb
+POWER_SUPPLY_TYPE=USB
+POWER_SUPPLY_HEALTH=Unknown
+POWER_SUPPLY_PRESENT=0
+POWER_SUPPLY_ONLINE=0
+POWER_SUPPLY_VOLTAGE_MIN=4440000
+POWER_SUPPLY_VOLTAGE_NOW=16382000
+POWER_SUPPLY_INPUT_CURRENT_LIMIT=2000000
+POWER_SUPPLY_TYPE=USB
+POWER_SUPPLY_USB_TYPE=[Unknown] SDP DCP CDP
+  Plug and unplug the charger; the 'status' should flip Charging <-> Discharging.
+
+  -> battery: SKIP  (capacity=56% voltage=16382000uV status=Discharging)
+
+
+========== RTC (sun55i-a523 rtc@7090000) ==========
+Confirm the on-SoC RTC (rtc@7090000) is bound, reads a time, and ticks. READ-ONLY (no clock set). Feeds &rtc enable + wake/alarm.
+
+$ ls -l /dev/rtc* 2>/dev/null; ls /sys/class/rtc/ 2>/dev/null
+lrwxrwxrwx 1 root root      4 Nov 14 22:55 /dev/rtc -> rtc0
+crw------- 1 root root 249, 0 Nov 14 22:55 /dev/rtc0
+rtc0
+
+$ for r in /sys/class/rtc/rtc*; do [ -e "$r" ] && printf '%s name=%s date=%s time=%s\n' "$r" "$(cat $r/name 2>/dev/null)" "$(cat $r/date 2>/dev/null)" "$(cat $r/time 2>/dev/null)"; done
+/sys/class/rtc/rtc0 name=sun6i-rtc 7090000.rtc date=2026-11-14 time=21:58:23
+
+$ hwclock -r 2>&1
+2026-11-14 22:58:23.884050+01:00
+
+$ dmesg 2>/dev/null | grep -iE 'rtc|sun6i-rtc' | tail -10
+[    0.535187] /soc/rtc@7090000: Fixed dependency cycle(s) with /soc/clock-controller@7010000
+[    0.544247] /soc/clock-controller@2001000: Fixed dependency cycle(s) with /soc/rtc@7090000
+[    0.583893] /soc/clock-controller@7010000: Fixed dependency cycle(s) with /soc/rtc@7090000
+[    1.430925] sun6i-rtc 7090000.rtc: registered as rtc0
+[    1.436539] sun6i-rtc 7090000.rtc: setting system clock to 2026-11-14T21:55:24 UTC (1794693324)
+[    8.589588] sun4i-drm display-engine: [drm] Cannot find any crtc or sizes
+
+  -> rtc: SKIP  (read=yes; ticking=skip)
+
+
+========== Thermal zones + PWM fan ==========
+Read the thermal zones and spin the PWM fan (pwm0 ch10 / PB6, inverted). Feeds pwm-fan + the THS cooling-map.
+
+$ for z in /sys/class/thermal/thermal_zone*; do [ -e "$z/temp" ] && printf '%s type=%s temp=%s\n' "$z" "$(cat $z/type 2>/dev/null)" "$(cat $z/temp 2>/dev/null)"; done
+/sys/class/thermal/thermal_zone0 type=cpub-thermal temp=38628
+/sys/class/thermal/thermal_zone1 type=cpul-thermal temp=38998
+/sys/class/thermal/thermal_zone2 type=gpu-thermal temp=39738
+/sys/class/thermal/thermal_zone3 type=npu-thermal temp=39738
+/sys/class/thermal/thermal_zone4 type=ddr-thermal temp=38776
+
+$ for c in /sys/class/thermal/cooling_device*; do [ -e "$c/type" ] && printf '%s type=%s max=%s\n' "$c" "$(cat $c/type 2>/dev/null)" "$(cat $c/max_state 2>/dev/null)"; done
+/sys/class/thermal/cooling_device0 type=pwm-fan max=5
+/sys/class/thermal/cooling_device1 type=7122000.npu max=6
+  Spinning fan /sys/class/thermal/cooling_device0 to max_state=5 — listen/feel for airflow.
+  restored cur_state=0
+
+  -> thermal: SKIP  (fan spin=yes; zones read from sysfs)
+
+
+========== CPU frequency / OPP (little + big cluster) ==========
+Confirm the two cpufreq domains and their OPP ladders vs the vendor bins (little <=1416, big <=1800 MHz).
+
+$ for p in /sys/devices/system/cpu/cpufreq/policy0 /sys/devices/system/cpu/cpufreq/policy4; do [ -d "$p" ] && { echo "--- $p ---"; cat "$p/scaling_cur_freq" 2>/dev/null; cat "$p/scaling_available_frequencies" 2>/dev/null; }; done
+
+
+$ cat /sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq 2>/dev/null
+
+
+$ cat /sys/devices/system/cpu/cpufreq/policy4/scaling_min_freq /sys/devices/system/cpu/cpufreq/policy4/scaling_max_freq 2>/dev/null
+
+
+  -> cpufreq: SKIP  (policy0 max=?kHz; policy4 max=?kHz)
+
+==========================================================
+Report written to: /root/hwverify-2026-11-14.md
+  (copy it off the device, e.g.  adb pull /root/hwverify-2026-11-14.md )
+==========================================================
