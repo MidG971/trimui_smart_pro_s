@@ -858,27 +858,28 @@ $ dmesg 2>/dev/null | grep -iE 'aic|sdio|wlan|mmc1' | tail -20
 [   12.492750] aic8800 txpwr max level:18
 [   12.496872] aic8800 txpwr max level:18
 [   12.499953] aic8800 txpwr max level:18
-[   14.078510] aic8800 vif0 connect to Passione(8) channel:5580 auth_type:0
+[   14.078510] aic8800 vif0 connect to Passione(8) channel:5580 auth_type:0
+
   Bringing wlan0 up and scanning (needs the out-of-tree aic8800 module loaded).
 
 $ ip link set wlan0 up 2>&1; iw dev wlan0 scan 2>&1 | grep -E 'SSID|freq' | head -n 20
 	freq: 2412
-	SSID: Bbox-3CD4AE95
+	SSID: <redacted>
 	freq: 2462
-	SSID: Passione
+	SSID: <redacted>
 		 * SSID List
-		HESSID: 38:07:16:21:ca:c7
+		HESSID: <redacted>
 	freq: 2462
-	SSID: KALBAZA
+	SSID: <redacted>
 	freq: 5200
-	SSID: KALBAZA
+	SSID: <redacted>
 		 * center freq segment 1: 42
 		 * center freq segment 2: 0
 		 * SSID List
 	freq: 5580
-	SSID: Passione
+	SSID: <redacted>
 		 * SSID List
-		HESSID: 38:07:16:21:ca:c7
+		HESSID: <redacted>
 		 * center freq segment 1: 122
 		 * center freq segment 2: 114
 	freq: 2462
@@ -911,7 +912,7 @@ crw-rw---- 1 root dialout 4, 65 Nov 14 23:33 /dev/ttyS1
   Attach BT in another shell, then press Enter to check hci0...
 $ hciconfig -a 2>&1 | head -n 20
 hci0:	Type: Primary  Bus: UART
-	BD Address: 22:22:C5:39:02:63  ACL MTU: 1021:9  SCO MTU: 255:4
+	BD Address: <redacted-mac>  ACL MTU: 1021:9  SCO MTU: 255:4
 	UP RUNNING PSCAN 
 	RX bytes:1523 acl:0 sco:0 events:98 errors:0
 	TX bytes:2728 acl:0 sco:0 commands:98 errors:0

@@ -684,22 +684,22 @@ $ dmesg 2>/dev/null | grep -iE 'aic|sdio|wlan|mmc1' | tail -20
 ```
 $ ip link set wlan0 up 2>&1; iw dev wlan0 scan 2>&1 | grep -E 'SSID|freq' | head -n 20
 	freq: 2412
-	SSID: Bbox-3CD4AE95
+	SSID: <redacted>
 	freq: 2462
-	SSID: Passione
+	SSID: <redacted>
 		 * SSID List
-		HESSID: 38:07:16:21:ca:c7
+		HESSID: <redacted>
 	freq: 2462
-	SSID: KALBAZA
+	SSID: <redacted>
 	freq: 5200
-	SSID: KALBAZA
+	SSID: <redacted>
 		 * center freq segment 1: 42
 		 * center freq segment 2: 0
 		 * SSID List
 	freq: 5580
-	SSID: Passione
+	SSID: <redacted>
 		 * SSID List
-		HESSID: 38:07:16:21:ca:c7
+		HESSID: <redacted>
 		 * center freq segment 1: 122
 		 * center freq segment 2: 114
 	freq: 2462
@@ -743,7 +743,7 @@ hciattach -n /dev/ttyS1 aic 1500000    # backgrounded; needs the aic8800_btlpm h
 ```
 $ hciconfig -a 2>&1 | head -n 20
 hci0:	Type: Primary  Bus: UART
-	BD Address: 22:22:C5:39:02:63  ACL MTU: 1021:9  SCO MTU: 255:4
+	BD Address: <redacted-mac>  ACL MTU: 1021:9  SCO MTU: 255:4
 	UP RUNNING PSCAN 
 	RX bytes:1523 acl:0 sco:0 events:98 errors:0
 	TX bytes:2728 acl:0 sco:0 commands:98 errors:0
