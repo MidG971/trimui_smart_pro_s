@@ -797,6 +797,10 @@
  * (enabled below) + the daemon/serdev; see the gamepad section.
  */
 
+/* HW-verified 2026-11-14: no RTC cell on this board — time is NOT retained
+ * across a cold power-off (software RTC only). The node stays enabled because
+ * it also provides CLK_OSC32K to the CCU/pinctrl; wakeup-source only matters
+ * for suspend-to-RAM alarms, not power-off wake. */
 &rtc {
 	status = "okay";
 };
