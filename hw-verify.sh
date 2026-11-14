@@ -188,6 +188,12 @@ finish() {
 		mv "$SUMMARY.tmp" "$SUMMARY" 2>/dev/null || true
 	fi
 	printf '%s\t%s\t%s\t%s\n' "$CUR_ID" "$1" "$(test_title "$CUR_ID")" "${2:-}" >> "$SUMMARY"
+	case "$1" in
+		PASS)    PASS_CNT=$((PASS_CNT+1)) ;;
+		FAIL)    FAIL_CNT=$((FAIL_CNT+1)) ;;
+		SKIP)    SKIP_CNT=$((SKIP_CNT+1)) ;;
+		PENDING) PEND_CNT=$((PEND_CNT+1)) ;;
+	esac
 	say ""
 	say "  -> $CUR_ID: $1  (${2:-no value})"
 }
@@ -753,11 +759,12 @@ t_leds() {
 		done
 		for _d in $_leds; do printf '0' > "$_d/brightness" 2>/dev/null; done
 		{ printf 'restored brightness=0 on %d LEDs\n' "$_n"; } >> "$TESTBUF"
-		# rainbow chaser: hue rotates across the ring, ~12 s (240 steps x 50 ms)
+		# rainbow chaser runs in the BACKGROUND while the test proceeds
+		_CHASER_PID=""
 		if command -v python3 >/dev/null 2>&1; then
-			say "  Rainbow chaser on all ${_n} LEDs (~12 s)."
-			{ printf 'chaser: rainbow sweep, 240 steps, %d LEDs\n' "$_n"; } >> "$TESTBUF"
-			python3 - "$_n" "$_leds" << 'PYEOF' >> "$TESTBUF" 2>&1
+			say "  Rainbow chaser running in background on all ${_n} LEDs."
+			{ printf 'chaser: background rainbow sweep, %d LEDs\n' "$_n"; } >> "$TESTBUF"
+			python3 - "$_n" $_leds << 'PYEOF' >> "$TESTBUF" 2>&1 &
 import colorsys, sys, time
 n = int(sys.argv[1]); leds = sys.argv[2:]
 # HW-verified ring mapping (2026-11-14, candidate D): idx0 = upper-left,
@@ -768,26 +775,55 @@ H = (n - 1) // 2
 def vpos(i):
 	return i if i <= H else H - (n - 1 - i)
 steps = 240
-for s in range(steps):
+while True:
+	for s in range(steps):
 		for i, d in enumerate(leds):
 			hue = (vpos(i) / H * 0.66 + s / steps) % 1.0
 			r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
 			open(d + '/multi_intensity', 'w').write(f"{int(r*255)} {int(g*255)} {int(b*255)}")
 			open(d + '/brightness', 'w').write('255')
 		time.sleep(0.05)
-for d in leds:
-	open(d + '/brightness', 'w').write('0')
-print(f"chaser done: {steps} steps x {n} LEDs (mirror-synced candidate D), restored off")
 PYEOF
-			say "    chaser done, LEDs restored off"
+			_CHASER_PID=$!
 		fi
+		# let the chase run while the operator answers the questions below
+		_cnt=$(askval "How many LEDs are physically present/addressable?" "17")
+		_order=$(askval "Colour order? (grb = correct default / rgb = need to flip)" "grb")
+		# stop the chase, then countdown red -> yellow -> green, then pause
+		if [ -n "$_CHASER_PID" ]; then kill "$_CHASER_PID" 2>/dev/null; wait "$_CHASER_PID" 2>/dev/null; fi
+		for _c in "255 0 0" "255 255 0" "0 255 0"; do
+			for _d in $_leds; do
+				printf '%s' "$_c" > "$_d/multi_intensity" 2>/dev/null
+				printf '%s' "$_mx" > "$_d/brightness" 2>/dev/null
+			done
+			{ printf 'countdown colour %s\n' "$_c"; } >> "$TESTBUF"
+			sleep 2
+		done
+		[ "$INTERACTIVE" = 1 ] && pause "    countdown done — showing verdict colour (Enter)" || sleep 3
+		# verdict colour: pass ratio red(0%) -> green(100%); >75% = deep green
+		_tot=$((PASS_CNT + FAIL_CNT + SKIP_CNT + PEND_CNT))
+		_ratio=0; [ "$_tot" -gt 0 ] && _ratio=$((PASS_CNT * 100 / _tot))
+		if [ "$_ratio" -gt 75 ]; then _hue=0.333; _val=0.55
+		else _hue=$(awk -v r=$_ratio 'BEGIN{printf "%.3f", r * 0.00333}'); _val=1.0; fi
+		python3 - "$_hue" "$_val" $_leds << 'PYEOF' >> "$TESTBUF" 2>&1
+import colorsys, sys
+hue = float(sys.argv[1]); val = float(sys.argv[2]); leds = sys.argv[3:]
+r, g, b = colorsys.hsv_to_rgb(hue % 1.0, 1.0, val)
+for d in leds:
+	open(d + '/multi_intensity', 'w').write(f"{int(r*255)} {int(g*255)} {int(b*255)}")
+	open(d + '/brightness', 'w').write('255')
+print(f"verdict colour shown: hue={hue} val={val} (pass ratio computed by caller)")
+PYEOF
+		say "  Verdict colour (${_ratio}% pass) shown for 5 s"
+		sleep 5
+		for _d in $_leds; do printf '0' > "$_d/brightness" 2>/dev/null; done
 	elif [ "$DEMO" = 1 ]; then
 		manual "LED colour order" "echo '255 0 0' > /sys/class/leds/<multi-led>/multi_intensity; echo 255 > .../brightness"
 	else
 		say "  No writable multi-LED under /sys/class/leds (need root + &ledc bound)."
 	fi
-	_cnt=$(askval "How many LEDs are physically present/addressable?" "17")
-	_order=$(askval "Colour order? (grb = correct default / rgb = need to flip)" "grb")
+	[ -z "${_cnt:-}" ] && _cnt=17
+	[ -z "${_order:-}" ] && _order=grb
 	calib "&ledc: LED count = ${_cnt} (expect 17); pixel-format = ${_order} (default grb; set allwinner,pixel-format if rgb)"
 	_dflt=SKIP; [ "$INTERACTIVE" = 1 ] && _dflt=PASS
 	finish "$(verdict "$_dflt")" "count=${_cnt}; order=${_order}" \
@@ -1096,6 +1132,29 @@ report_finalize() {
 		if [ -s "$CALIB" ]; then cat "$CALIB"; else printf '(no calibration values captured in this run)\n'; fi
 		printf '```\n'
 	} >> "$REPORT"
+	# final verdict colour on the LED ring: red(0%) -> green(100%), >75% = deep green
+	_leds=""; for _d in /sys/class/leds/*; do
+		[ -e "$_d/multi_intensity" ] && [ -w "$_d/brightness" ] && _leds="$_leds $_d"
+	done
+	if [ -n "$_leds" ] && command -v python3 >/dev/null 2>&1; then
+		_tot=$((PASS_CNT + FAIL_CNT + SKIP_CNT + PEND_CNT))
+		_ratio=0; [ "$_tot" -gt 0 ] && _ratio=$((PASS_CNT * 100 / _tot))
+		if [ "$_ratio" -gt 75 ]; then _hue=0.333; _val=0.55
+		else _hue=$(awk -v r=$_ratio 'BEGIN{printf "%.3f", r * 0.00333}'); _val=1.0; fi
+		say "LED ring: final verdict colour for 8 s (${_ratio}% pass)"
+		python3 - "$_hue" "$_val" $_leds << 'PYEOF'
+import colorsys, sys, time
+hue = float(sys.argv[1]); val = float(sys.argv[2]); leds = sys.argv[3:]
+r, g, b = colorsys.hsv_to_rgb(hue % 1.0, 1.0, val)
+for d in leds:
+	open(d + '/multi_intensity', 'w').write(f"{int(r*255)} {int(g*255)} {int(b*255)}")
+	open(d + '/brightness', 'w').write('255')
+print(f"final verdict: {len(leds)} LEDs hue={hue} val={val}", flush=True)
+time.sleep(8)
+for d in leds:
+	open(d + '/brightness', 'w').write('0')
+PYEOF
+	fi
 }
 
 # ---- menu ------------------------------------------------------------------
@@ -1196,6 +1255,7 @@ list_tests() {
 # main
 # ============================================================================
 REPORT=""
+PASS_CNT=0; FAIL_CNT=0; SKIP_CNT=0; PEND_CNT=0
 RUN_ALL=0
 RUN_BRINGUP=0
 ARGS_TESTS=""
