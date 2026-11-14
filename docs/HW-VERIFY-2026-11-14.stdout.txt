@@ -536,20 +536,20 @@ $ dmesg 2>/dev/null | grep -iE 'aic|sdio|wlan|mmc1' | tail -20
 
 $ ip link set wlan0 up 2>&1; iw dev wlan0 scan 2>&1 | grep -E 'SSID|freq' | head -n 20
 	freq: 2412
-	SSID: Bbox-3CD4AE95
+	SSID: Bbox-XXXX
 	freq: 2462
-	SSID: \x00\x00\x00\x00\x00\x00\x00
+	SSID: 
 	freq: 2462
 	SSID: Passione
 		 * SSID List
-		HESSID: 38:07:16:21:ca:c7
+		HESSID: XXX
 	freq: 5200
 	SSID: KALBAZA
 		 * SSID List
 		 * center freq segment 1: 42
 		 * center freq segment 2: 0
 	freq: 5500
-	SSID: Bbox-3CD4AE95
+	SSID: Bbox-YYY
 		 * center freq segment 1: 106
 		 * center freq segment 2: 0
 		 * SSID List
