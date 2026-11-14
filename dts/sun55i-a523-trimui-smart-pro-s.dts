@@ -805,6 +805,15 @@
 	status = "okay";
 };
 
+/* HW-verified 2026-11-14: the A523 NPU is a Verisilicon VIP9000 (etnaviv reports
+ * "GC0, Unknown GPU model"). Upstream dtsi gives npu@7122000 compatible
+ * "vivante,gc", so etnaviv binds it but has no model entry and oopses in
+ * etnaviv_iommu_context_init when the device is opened. No mainline NPU driver
+ * yet — keep the node disabled until etnaviv learns the model. */
+&npu {
+	status = "disabled";
+};
+
 /*
  * Addressable RGB LED array (17 LEDs, WS2812-style) on the LEDC controller,
  * data on PH19. The LEDC node + driver landed in mainline v7.1
