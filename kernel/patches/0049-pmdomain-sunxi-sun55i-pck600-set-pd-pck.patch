@@ -1,0 +1,24 @@
+From: Midgy BALON <midgy971@gmail.com>
+Subject: [PATCH] pmdomain: sunxi: sun55i-pck600: set pd->pck in probe
+
+sunxi_pck600_pd_set_power() dereferences pd->pck on the timeout error
+path (dev_err(pck->dev, ...)), but probe never initializes it, so a
+power-domain timeout oopses with a NULL pointer dereference instead of
+logging. Found by ut-slayer on 6.18/7.2 (issue #2); bug present in
+v7.4-rc2 and master too.
+
+Reported-by: Juan Manuel Lopez Carrillo <juanmanuellopezcarrillo@gmail.com>
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+---
+diff --git a/drivers/pmdomain/sunxi/sun55i-pck600.c b/drivers/pmdomain/sunxi/sun55i-pck600.c
+index ad864ccdd..06d62b98f 100644
+--- a/drivers/pmdomain/sunxi/sun55i-pck600.c
++++ b/drivers/pmdomain/sunxi/sun55i-pck600.c
+@@ -176,6 +176,7 @@ static int sunxi_pck600_probe(struct platform_device *pdev)
+ 		pd->genpd.power_on = sunxi_pck600_power_on;
+ 		pd->genpd.flags = pd_desc->flags;
+ 		pd->base = base + PPU_REG_SIZE * i;
++		pd->pck = pck;
+ 
+ 		sunxi_pck600_pd_setup(pd, desc);
+ 		ret = pm_genpd_init(&pd->genpd, NULL, false);
