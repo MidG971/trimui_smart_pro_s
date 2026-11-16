@@ -435,6 +435,18 @@
 				regulator-boot-on;
 			};
 		};
+
+		/* PMIC charger LED: solid red when plugged (HW). leds-axp20x driver. */
+		axp_led: led {
+			compatible = "x-powers,axp813-charger-led";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			led@0 {
+				reg = <0>;
+				label = "red:charging";
+			};
+		};
 	};
 
 	/*

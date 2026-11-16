@@ -1,0 +1,170 @@
+From: Midgy BALON <midgy971@gmail.com>
+Subject: [PATCH] leds: axp20x: add charger LED driver for AXP20x-like PMICs (AXP717)
+
+Port of megous' out-of-tree leds-axp20x (charger LED on AXP813/AXP717 via
+the mfd cell), plus a DT binding. Used on the Trimui Smart Pro S for
+red:charging (solid red while plugged, HW CHGLED). Build-tested as built-in
+on v7.4-rc1.
+
+Originally-by: Ondrej Jirman <megi@xff.cz>
+Signed-off-by: Midgy BALON <midgy971@gmail.com>
+---
+diff --git a/drivers/leds/Kconfig b/drivers/leds/Kconfig
+index 7ec2c8d785426..8ddd50909de0e 100644
+--- a/drivers/leds/Kconfig
++++ b/drivers/leds/Kconfig
+@@ -1054,6 +1054,13 @@ config LEDS_LTC3208
+ 	  To compile this driver as a module, choose M here: the module will
+ 	  be called ltc3208.
+ 
++config LEDS_AXP20X
++	tristate "Charger LED support for AXP20X-like PMICs (AXP813, AXP717, ...)"
++	depends on LEDS_CLASS && MFD_AXP20X
++	help
++	  This option enables support for the on-chip charger LED driver on
++	  AXP20X-like PMICs.
++
+ source "drivers/leds/blink/Kconfig"
+ 
+ comment "Flash and Torch LED drivers"
+diff --git a/drivers/leds/Makefile b/drivers/leds/Makefile
+index 4d4b089156e24..b14f9413ab8ec 100644
+--- a/drivers/leds/Makefile
++++ b/drivers/leds/Makefile
+@@ -101,6 +101,7 @@ obj-$(CONFIG_LEDS_UPBOARD)		+= leds-upboard.o
+ obj-$(CONFIG_LEDS_WM831X_STATUS)	+= leds-wm831x-status.o
+ obj-$(CONFIG_LEDS_WM8350)		+= leds-wm8350.o
+ obj-$(CONFIG_LEDS_WRAP)			+= leds-wrap.o
++obj-$(CONFIG_LEDS_AXP20X)		+= leds-axp20x.o
+ 
+ # Kinetic ExpressWire Protocol
+ obj-$(CONFIG_LEDS_EXPRESSWIRE)		+= leds-expresswire.o
+diff --git a/drivers/mfd/axp20x.c b/drivers/mfd/axp20x.c
+index 50df66de24e06..4cc60a6fe0a45 100644
+--- a/drivers/mfd/axp20x.c
++++ b/drivers/mfd/axp20x.c
+@@ -222,6 +222,7 @@ static const struct regmap_range axp717_writeable_ranges[] = {
+ 	regmap_reg_range(AXP717_PMU_FAULT, AXP717_MODULE_EN_CONTROL_1),
+ 	regmap_reg_range(AXP717_MIN_SYS_V_CONTROL, AXP717_BOOST_CONTROL),
+ 	regmap_reg_range(AXP717_VSYS_V_POWEROFF, AXP717_VSYS_V_POWEROFF),
++	regmap_reg_range(AXP717_SOFT_PWROFF, AXP717_SOFT_PWROFF),
+ 	regmap_reg_range(AXP717_IRQ0_EN, AXP717_IRQ4_EN),
+ 	regmap_reg_range(AXP717_IRQ0_STATE, AXP717_IRQ4_STATE),
+ 	regmap_reg_range(AXP717_TS_PIN_CFG, AXP717_TS_PIN_CFG),
+@@ -1062,6 +1063,10 @@ static struct mfd_cell axp313a_cells[] = {
+ };
+ 
+ static struct mfd_cell axp717_cells[] = {
++	{
++		.name		= "axp20x-charger-led",
++		.of_compatible	= "x-powers,axp813-charger-led",
++	},
+ 	MFD_CELL_NAME("axp20x-regulator"),
+ 	MFD_CELL_RES("axp20x-pek", axp717_pek_resources),
+ 	MFD_CELL_OF("axp717-adc",
+@@ -1247,20 +1252,44 @@ static int axp20x_power_off(struct sys_off_data *data)
+ 	case AXP323_ID:
+ 	case AXP313A_ID:
+ 		shutdown_reg = AXP313A_SHUTDOWN_CTRL;
++		regmap_set_bits(axp20x->regmap, shutdown_reg, AXP20X_OFF);
++		break;
++	case AXP717_ID:
++		/* AXP717/AXP2202 power off via SOFT_PWROFF (0x27) bit0 */
++		regmap_set_bits(axp20x->regmap, AXP717_SOFT_PWROFF,
++				AXP717_SOFT_PWROFF_POWEROFF);
+ 		break;
+ 	default:
+-		shutdown_reg = AXP20X_OFF_CTRL;
++		regmap_set_bits(axp20x->regmap, AXP20X_OFF_CTRL, AXP20X_OFF);
+ 		break;
+ 	}
+ 
+-	regmap_set_bits(axp20x->regmap, shutdown_reg, AXP20X_OFF);
+-
+ 	/* Give capacitors etc. time to drain to avoid kernel panic msg. */
+ 	mdelay(500);
+ 
+ 	return NOTIFY_DONE;
+ }
+ 
++static int axp717_restart(struct sys_off_data *data)
++{
++	struct axp20x_dev *axp20x = data->cb_data;
++
++	/*
++	 * The AXP717/AXP2202 can power-cycle the whole system: writing
++	 * SOFT_PWROFF (0x27) bit 1 makes the PMU power off and then power on
++	 * again (VRTC stays up), per the AXP717/AXP717C datasheet. A true PMIC
++	 * power-cycle is the reliable restart on the A523: the watchdog/PSCI
++	 * resets return the SoC to the SPL, which then hangs re-training warm
++	 * DRAM; unpowering DRAM via the PMIC avoids that.
++	 */
++	regmap_set_bits(axp20x->regmap, AXP717_SOFT_PWROFF,
++			AXP717_SOFT_PWROFF_RESTART);
++
++	mdelay(500);
++
++	return NOTIFY_DONE;
++}
++
+ int axp20x_match_device(struct axp20x_dev *axp20x)
+ {
+ 	struct device *dev = axp20x->dev;
+@@ -1461,6 +1490,17 @@ int axp20x_device_probe(struct axp20x_dev *axp20x)
+ 	if (axp20x->variant != AXP288_ID)
+ 		devm_register_power_off_handler(axp20x->dev, axp20x_power_off, axp20x);
+ 
++	/*
++	 * Prefer a PMIC power-cycle for restart on the AXP717 (see
++	 * axp717_restart): register at SYS_OFF_PRIO_FIRMWARE so it runs before
++	 * the watchdog and PSCI restart handlers, which hang the SPL on warm
++	 * DRAM on the A523.
++	 */
++	if (axp20x->variant == AXP717_ID)
++		devm_register_sys_off_handler(axp20x->dev, SYS_OFF_MODE_RESTART,
++					      SYS_OFF_PRIO_FIRMWARE,
++					      axp717_restart, axp20x);
++
+ 	dev_info(axp20x->dev, "AXP20X driver loaded\n");
+ 
+ 	return 0;
+diff --git a/Documentation/devicetree/bindings/leds/x-powers,axp813-charger-led.yaml b/Documentation/devicetree/bindings/leds/x-powers,axp813-charger-led.yaml
+new file mode 100644
+index 0000000000000..932026dab6843
+--- /dev/null
++++ b/Documentation/devicetree/bindings/leds/x-powers,axp813-charger-led.yaml
+@@ -0,0 +1,34 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR MIT)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/leds/x-powers,axp813-charger-led.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: X-Powers AXP813/AXP717 charger LED
++
++maintainers:
++  - Midgy BALON <midgy971@gmail.com>
++
++properties:
++  compatible:
++    const: x-powers,axp813-charger-led
++
++  label:
++    description: LED label (default red:charging)
++
++required:
++  - compatible
++
++additionalProperties: false
++
++examples:
++  - |
++    leds {
++        compatible = "x-powers,axp813-charger-led";
++        #address-cells = <1>;
++        #size-cells = <0>;
++        led@0 {
++            reg = <0>;
++            label = "red:charging";
++        };
++    };
