@@ -1,0 +1,29 @@
+# /etc/systemd/system/offcharge-check.service
+[Unit]
+Description=Off-mode charge check (divert to offcharge.target if woken by charger)
+After=local-fs.target
+Before=multi-user.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/offcharge-check.sh
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/offcharge.target
+[Unit]
+Description=Off-mode charging (minimal target)
+Requires=offcharge-monitor.service
+After=offcharge-monitor.service
+AllowIsolate=yes
+
+# /etc/systemd/system/offcharge-monitor.service
+[Unit]
+Description=Off-mode charge monitor (poweroff on unplug, full boot on POK)
+After=local-fs.target
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/offcharge-monitor.sh
+Restart=no
+[Install]
+WantedBy=offcharge.target
