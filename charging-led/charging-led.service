@@ -1,0 +1,9 @@
+[Unit]
+Description=Charging status LED (green blink while charging, green solid when full)
+After=local-fs.target
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/charging-led.sh
+Restart=always
+[Install]
+WantedBy=multi-user.target offcharge.target
