@@ -1,7 +1,11 @@
-# Charging status LED
+# Status LED matrix (Smart Pro S)
 
-The PMIC's own CHGLED stays solid red whenever the device is plugged in
-(hardware-driven, not in DT yet — see the status-led TODO). The ring LED
-`rgb:indicator-0` is used as the software status LED: **blink green while
-charging, solid green when full**, off otherwise. Reads
-/sys/class/power_supply/axp20x-battery/status. HW-verified 2026-11-16.
+One software status LED (ring `rgb:indicator-0`, the logo position) plus the
+PMIC CHGLED (solid red whenever plugged, hardware-driven, now in DT via the
+leds-axp20x driver as `red:charging`):
+
+- plugged & charging -> software LED blinks RED, CHGLED solid red
+- plugged & full     -> software LED solid GREEN
+- on & unplugged     -> software LED solid WHITE (lights the device logo)
+
+Reads /sys/class/power_supply/axp20x-battery/status. HW-verified 2026-11-16.
