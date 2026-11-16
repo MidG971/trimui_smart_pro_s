@@ -1,35 +1,59 @@
 #!/bin/sh
-# Boot rumble: 3 s of vibration at startup, alongside the fan chirp, so the
-# user can tell the device is booting in crowded/noisy environments.
-# Drives the pwm-vibrator input device (EV_FF) directly.
+# Boot rumble: 3 s of vibration at startup, alongside the fan chirp.
 set -u
-DEV=""
-for e in /dev/input/event*; do
-    n=$(cat "$e" 2>/dev/null </dev/null; true)
-    name=$(cat /sys/class/input/$(basename $e)/device/name 2>/dev/null)
-    case "$name" in *vibra*|*motor*|*rumble*|*TRIMUI*) caps=$(cat /sys/class/input/$(basename $e)/device/capabilities/ff 2>/dev/null); [ -n "$caps" ] && [ "$((caps & 0x01))" != "0" ] && { DEV=$e; break; };; esac
-done
-[ -z "$DEV" ] && { echo "rumble-boot: no FF device found" >&2; exit 0; }
-python3 - "$DEV" << 'PYEOF'
-import sys, time, struct, fcntl, os
-# EVIOC: upload FF_RUMBLE effect, play for 3 s, erase
-EVIOCGMAGIC=0x40004500
-dev = sys.argv[1]
+exec python3 - << 'PYEOF'
+import glob, os, time, fcntl, ctypes, struct
+
+class Trigger(ctypes.Structure):
+    _fields_ = [('button', ctypes.c_uint16), ('interval', ctypes.c_uint16)]
+class Replay(ctypes.Structure):
+    _fields_ = [('length', ctypes.c_uint16), ('delay', ctypes.c_uint16)]
+class Envelope(ctypes.Structure):
+    _fields_ = [('attack_length', ctypes.c_uint16), ('attack_level', ctypes.c_uint16),
+                ('fade_length', ctypes.c_uint16), ('fade_level', ctypes.c_uint16)]
+class Periodic(ctypes.Structure):
+    _fields_ = [('envelope', Envelope), ('period', ctypes.c_uint16), ('magnitude', ctypes.c_int16),
+                ('offset', ctypes.c_int16), ('phase', ctypes.c_uint16), ('custom_len', ctypes.c_uint16),
+                ('custom', ctypes.c_void_p)]
+class Rumble(ctypes.Structure):
+    _fields_ = [('strong_magnitude', ctypes.c_uint16), ('weak_magnitude', ctypes.c_uint16)]
+class U(ctypes.Union):
+    _fields_ = [('rumble', Rumble), ('periodic', Periodic)]
+class Effect(ctypes.Structure):
+    _fields_ = [('type', ctypes.c_uint16), ('id', ctypes.c_int16), ('direction', ctypes.c_uint16),
+                ('trigger', Trigger), ('replay', Replay), ('u', U)]
+
+EV_FF, FF_RUMBLE = 0x15, 0x50
+def ioc(d, nr, sz): return (d << 30) | (sz << 16) | (ord('E') << 8) | nr
+print('sizeof(ff_effect) =', ctypes.sizeof(Effect), flush=True)
+EVIOCSFF = ioc(1, 0x80, ctypes.sizeof(Effect))
+EVIOCRMFF = ioc(1, 0x81, 2)
+
+dev = devname = None
+for p in sorted(glob.glob('/dev/input/event*')):
+    name = open('/sys/class/input/%s/device/name' % os.path.basename(p)).read().strip()
+    if any(k in name.lower() for k in ('vibra', 'motor', 'rumble', 'trimui')):
+        dev, devname = p, name
+        break
+if not dev:
+    print('rumble-boot: no FF device', flush=True); raise SystemExit(0)
+
+eff = Effect()
+eff.type = FF_RUMBLE; eff.id = -1
+eff.replay.length = 3000
+eff.u.rumble.strong_magnitude = 0x7FFF
+eff.u.rumble.weak_magnitude = 0x7FFF
 f = os.open(dev, os.O_RDWR)
-# find a free effect id via EVIOCGBIT(EV_FF)
-import array
-ffbits = array.array('H', [0]*8)
-fcntl.ioctl(f, 0x40004520, ffbits)  # EVIOCGBIT(EV_FF=0x15, ...) rough; fallback below
-# simpler: use ffmemless-style fixed id 0
-# struct ff_effect: type(2) id(2) direction(2) trigger(4+4) replay(4+4) u.ff_rumble(strong,weak)
-eff = struct.pack('<HHHIHHIIHH', 0x50, 0, 0, 0, 0, 3000, 0, 0x7FFF, 0x7FFF)  # FF_RUMBLE, id0, replay 3000ms
-fcntl.ioctl(f, 0x40304580, eff)   # EVIOCSFF
-play = struct.pack('<HHI', 0, 0, 1)  # EV_FF, id0, value=1 (play once)
-fcntl.ioctl(f, 0x40044581, play)  # EVIOC... write via write()
-os.write(f, struct.pack('<HHI', 0x15, 0, 1))
+fcntl.ioctl(f, EVIOCSFF, eff)   # pass struct by ref: kernel fills eff.id
+eid = eff.id
+print('rumble-boot: uploaded effect id', eid, 'on', dev, devname, flush=True)
+os.write(f, struct.pack('<QQHHi', 0, 0, EV_FF, eid, 1))
+print('rumble-boot: playing 3s', flush=True)
 time.sleep(3)
-os.write(f, struct.pack('<HHI', 0x15, 0, 0))  # stop
-fcntl.ioctl(f, 0x40304581, struct.pack('<H', 0))  # EVIOCRMFF id0
+try:
+    os.write(f, struct.pack('<QQHHi', 0, 0, EV_FF, eid, 0))
+    fcntl.ioctl(f, EVIOCRMFF, struct.pack('<H', eid))
+except OSError:
+    pass
 os.close(f)
-print("rumble-boot: 3s rumble on", dev)
 PYEOF
