@@ -1,0 +1,12 @@
+[Unit]
+Description=Boot rumble: 3 s vibration at startup (with the fan chirp)
+After=basic.target
+# fire together with fan-boot-chirp.service (same target)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rumble-boot.sh
+TimeoutStartSec=10
+
+[Install]
+WantedBy=multi-user.target
