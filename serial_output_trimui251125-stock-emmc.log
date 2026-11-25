@@ -1,0 +1,1137 @@
+[236]HELLO! BOOT0 is starting!
+[240]BOOT0 commit : 33d8db429a
+[243]periph0 has been enabled
+[247]set pll end
+[249]PL gpio voltage : 3.3V 
+[253]PMU: AXP2202
+[258]PMU: AXP1530
+[263]power mode:33, sys_vol:920
+[272]vaild para:8  select dram para0
+[276]board init ok
+[298]enable_jtag
+[300]card no is 2
+[302]sdcard 2 line count 8
+[305][mmc]: mmc driver ver 2023-03-24 16:23
+[316][mmc]: Wrong media type 0x0, but host sdc2, try mmc first
+[322][mmc]: ***Try MMC card 2***
+[358][mmc]: RMCA OK!
+[360][mmc]: bias 17fb
+[362][mmc]: mmc 2 bias 17fb
+[373][mmc]: MMC 5.1
+[375][mmc]: HSSDR52/SDR25 8 bit
+[378][mmc]: 50000000 Hz
+[381][mmc]: 7456 MB
+[383][mmc]: ***SD/MMC 2 init OK!!!***
+[394]DRAM BOOT DRIVE INFO: V0.67
+[398]DRAM_VCC set to 1100 mv
+[401]DRAM CLK =1200 MHZ
+[404]DRAM Type =8 (3:DDR3,4:DDR4,7:LPDDR3,8:LPDDR4)
+[415]phy_dfs_clk1 = 800M
+[419]phy_dfs_clk2 = 480M
+[422]phy_dfs_clk3 = 150M
+[426]phy_dfs_clk0 = 1200M
+[429]DRAM MDFS VERSION INFO: V0.660
+[433]DRAM MDFS time =38430 ns
+[436]DRAM SIZE =1024 MBytes, para1 = 30fa, para2 = 4000000, tpr13 = 6465
+[467]DRAM simple test OK.
+[469]dram size =1024
+[476]nsi init 2023-2-23
+[568]Loading boot-pkg Succeed(index=0).
+[572]Entry_name        = u-boot
+[582]Entry_name        = monitor
+[586]Entry_name        = scp
+[589]Entry_name        = dtb
+[593]tunning data addr:0x4a0003e8
+[597]Jump to second Boot.
+NOTICE:  BL31: v2.5(debug):55b180a27
+NOTICE:  BL31: Built : 11:09:52, Sep 18 2023
+NOTICE:  BL31: No DTB found.
+nsi init ok 2022-11-08
+ERROR:   Error initializing runtime service opteed_fast
+
+
+U-Boot 2018.07 (Dec 14 2025 - 18:37:18 +0800) Allwinner Technology
+
+[00.736]CPU:   Allwinner Family
+[00.739]Model: sun55iw3
+I2C:   ready
+[00.750]DRAM:  1 GiB
+[00.754]Relocation Offset is: 35af5000
+[00.826]secure enable bit: 0
+[01.332]EXT: NO FOUND
+[01.334]EXT: ETA6973/ETA6974
+[01.345]PMU: AXP2202
+[01.351]BMU: AXP2202
+[01.357]battery_check pass:radio:76, vol:3912
+[01.362][AXP2202] comm status : 0x0 = 0x18, 0x1 = 0xd5
+[01.367][AXP2202] onoff status: 0x20 = 0x1, 0x21 = 0x0
+[01.371][AXP2202] reboot/charge status: 0xf0 = 0x0
+[01.376]PMU: AXP1530
+[01.378]CPU=1008 MHz,PLL6=600 Mhz,AHB=200 Mhz, APB1=100Mhz  MBus=600Mhz
+[01.385]gic: sec monitor mode
+SPI ALL:   ready
+[01.390]flash init start
+[01.392]workmode = 0,storage type = 2
+[01.395][mmc]: mmc driver ver uboot2018:2024-10-18 9:01:00
+[01.402][mmc]: SUNXI SDMMC Controller Version:0x50500
+[01.412][mmc]: 200 MHz...
+[01.414][mmc]: sample: 22 - 113(ps)
+[01.417][mmc]: ds: 22 - 113(ps)
+[01.452][mmc]: Best spd md: 4-HS400, freq: 5-200000000, Bus width: 8
+[01.458]sunxi flash init ok
+[01.463]Loading Environment from SUNXI_FLASH... OK
+TRIMUI boot reason=button
+[01.478]Fail to get de's irq!
+[01.512][PHY] Unset hs_clk_rate.
+PCB TYPE:0
+panel_dsi_get_modes: clk[62017] h[720 752 758 776] v[1280 1296 1298 1332]
+[01.529][axp][err]: can't find cldo4 from table
+[01.533]enable power_ext cldo4, ret=-1
+[01.537][axp][err]: can't find cldo1 from table
+[01.541]enable power_ext cldo1, ret=-1
+check_lcd_module
+0x04=E8, len=0 [E8 85 76 76]
+0xDA=E8, len=0 [E8 00 00 00]
+0xDB=85, len=0 [85 00 00 00]
+0xDC=76, len=0 [76 00 00 00]
+LCD module er68576
+[02.018][axp][err]: can't find cldo1 from table
+[02.022]disable power_ext cldo1, ret=-1
+[02.026][axp][err]: can't find cldo4 from table
+[02.030]disable power_ext cldo4, ret=-1
+[02.054][axp][err]: can't find cldo4 from table
+[02.058]enable power_ext cldo4, ret=-1
+[02.062][axp][err]: can't find cldo1 from table
+[02.066]enable power_ext cldo1, ret=-1
+lcd panel init disp2
+PCB TYPE:0
+panel_dsi_get_modes: clk[69000] h[720 752 756 844] v[1280 1296 1300 1309]
+dsi1@5508000:  detailed mode clock 69000 kHz, flags[0]
+    H: 0720 0752 0756 0844
+    V: 1280 1296 1300 1309
+bus_format: 0
+partno erro : can't find partition bootloader
+[02.513]bootloader is not found!
+396x66 bmp rotated to 66x396
+x=327, y=442, width=66, height=396, ssize=720, ysize=1280
+[02.531][PHY] phy_config:0 Unset the lvl,Use the default cfg.
+PCB TYPE:0
+panel_dsi_get_modes: clk[69000] h[720 752 756 844] v[1280 1296 1300 1309]
+[02.549][axp][err]: can't find cldo4 from table
+[02.553]enable power_ext cldo4, ret=-1
+[02.557][axp][err]: can't find cldo1 from table
+[02.561]enable power_ext cldo1, ret=-1
+lcd panel init disp2
+[03.148]the secure storage item0 copy0 magic is bad
+[03.162]the secure storage item0 copy1 magic is bad
+[03.166]usb burn from boot
+delay time 0
+weak:otg_phy_config
+[03.177]usb prepare ok
+[03.479]overtime
+[03.484]do_burn_from_boot usb : no usb exist
+skip update boot_param
+partno erro : can't find partition private
+partno erro : can't find partition private
+partno erro : can't find partition private
+partno erro : can't find partition private
+partno erro : can't find partition private
+root_partition is rootfs
+set root to /dev/mmcblk0p4
+[03.514]update part info
+[03.518]update bootcmd
+lradc_value:63
+dram size:1073741824
+[03.525]change working_fdt 0x7baa4e28 to 0x7ba74e28
+quick charge supported, battery exist: yes, power delivery enabled
+[03.540]The storage not support sample function
+ret 0
+[03.689]update dts
+Hit any key to stop autoboot:  0 
+avb_footer.c:22: ERROR: Footer magic is incorrect.
+[03.826]no vendor_boot partition is found
+Android's image name: sun55i_arm64
+kernel  addr 0x40080000 0x41694808 exceed ramdisk scope
+ramdisk  addr 0x41000000 0x41000000
+ERROR: reserving fdt memory region failed (addr=7bb7c000 size=384000)
+[03.887]Starting kernel ...
+
+[03.890]total: 3890 ms
+
+[03.892][mmc]: mmc exit start
+[03.926][mmc]: mmc 2 exit ok
+NOTICE:  [SCP] :wait arisc ready....
+NOTICE:  [SCP] :arisc version: []
+NOTICE:  [SCP] :arisc startup ready
+NOTICE:  [SCP] :arisc startup notify message feedback
+NOTICE:  [SCP] :sunxi-arisc driver is starting
+BL3-1: Next image address = 0x40080000
+BL3-1: Next image spsr = 0x3c5
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x412fd050]
+[    0.000000] Linux version 5.15.147 (TRIMUIDEV@NUC) (aarch64-none-linux-gnu-gcc (GNU Toolchain for the A-profile Architecture 10.3-2021.07 (arm-10.29)) 10.3.1 20210621, GNU ld (GNU Toolchain for the A-profile Architecture 10.3-2021.07 (arm-10.29)) <IP>10621) #82 SMP PREEMPT Mon Feb 2 14:12:03 CST 2026
+[    0.000000] Machine model: sun55iw3
+[    0.000000] earlycon: uart8250 at MMIO32 0x0000000002500000 (options '')
+[    0.000000] printk: bootconsole [uart8250] enabled
+can't run '/etc/preinit': No such file or directory
+Starting syslogd: OK
+Starting klogd: OK
+Running sysctl: OK
+chown: unknown user/group avahi:avahi
+Populating /dev using udev: done
+Initializing random number generator: OK
+Saving random seed: OK
+Mounting cgroupfs hierarchy: OK
+Starting system message bus: dbus[1074]: Unknown username "pulse" in message bus configuration file
+done
+Starting rpcbind: OK
+Starting iptables: OK
+Starting network: OK
+Starting ntpd: OK
+usb0 current mode: 
+Starting adb: OK
+init adb main
+Handling main()
+Starting pulseaudio: Starting sshd: OK
+ln: /dev/by-name/boot: File exists
+/dev/by-name/UDISK already format by ext4
+start
+chmod: /usr/bin/notify: No such file or directory
+TRIMUI picture to drmfb
+fb_id[161] fbmem=0x7f92a41000, s_fb_size=3686400
+ui:0x7f92a41000
+# /usr/trimui/bin/splash.png:1280x720@4chn
+ls: /dev/mmcblk1*: No such file or directory
+TRIMUI Input Daemon Jan 27 2026
+enable led gpio
+sh: line 1: echo: write error: Device or resource busy
+sh: line 1: /sys/class/gpio/gpio338/direction: No such file or directory
+sh: line 1: /sys/class/gpio/gpio338/value: No such file or directory
+enable left pad gpio
+enable right pad gpio
+enable dip switch gpio
+could not get driver version for /dev/input/mice, Inappropriate ioctl for device
+open device /dev/input/mice fail
+pk_read_cal_config: [610 2108 3648] [0 1763 3490] z-trigger[250 750] deadzone[0.10]
+pk dead zone radius:3276.000000
+pk_read_cal_config: [532 2041 3549] [0 1755 3557] z-trigger[250 750] deadzone[0.10]
+pk dead zone radius:3276.000000
+could not get driver version for /dev/input/js0, Invalid argument
+fd=4
+fd=5
+TRIMUI Scene Daemon
+sh: line 1: echo: write error: Device or resource busy
+sh: line 1: echo: write error: Device or resource busy
+sh: line 1: echo: write error: Device or resource busy
+sh: line 1: echo: write error: Device or resource busy
+dip change: 1
+run scene 1
+ls: *.sh: No such file or directory
+/usr/trimui/apps/fn_editor/show_fn_dip_on_msg.sh: line 24: /tmp/trimui_osd/osd_toast_msg: No such file or directory
+G2D fd=4
+trimui_osd_init_layers
+fb_id[161] fbmem=0x7f87adc000, s_fb_size=3686400
+fb_id[162] fbmem=0x7f87758000, s_fb_size=3686400
+fb_id[163] fbmem=0x7f873d4000, s_fb_size=3686400
+osd:0x7f87adc000, msg:0x7f87758000, blank:0x7f873d4000
+fb_id[164] fbmem=0x7f87050000, s_fb_size=3686400
+ui:0x7f87050000
+default pipe size: 65536
+new pipe size: 4096
+chmod: /usr/trimui/osd//widgets/static_temperature/set.sh: No such file or directory
+sh: line 1: /usr/trimui/osd//widgets/static_temperature/set.sh: No such file or directory
+chmod: /usr/trimui/osd//widgets/static_cpu_freq/set.sh: No such file or directory
+sh: line 1: /usr/trimui/osd//widgets/static_cpu_freq/set.sh: No such file or directory
+killall: wpa_supplicant: no process killed
+killall: udhcpc: no process killed
+udhcpc: started, v1.35.0
+Failed to connect to non-global ctrl_ifname: wlan0  error: Connection refused
+Failed to connect to non-global ctrl_ifname: wlan0  error: Connection refused
+udhcpc: broadcasting discover
+Can't get device info: No such device
+stop bluetoothd and hciattach
+rm: can't remove '/tmp/bluetooth_ready': No such file or directory
+Stopping bluetoothd: FAIL
+SDL_CreateWindow:536805376 536805376 1280 720
+killall: bluealsa: no process killed
+rm: can't remove '/tmp/localtime': No such file or directory
+killall: bluetoothctl: no process killed
+open icon_bg_red fail: Couldn't open ../res/skin/icon-bg-red.png: No such file or directory
+open icon_bg_blue fail: Couldn't open ../res/skin/icon-bg-blue.png: No such file or directory
+open icon_bg_orange fail: Couldn't open ../res/skin/icon-bg-orange.png: No such file or directory
+load music /etc/enter.wav fail: Mix_LoadWAV_RW with NULL src
+cp: can't stat '/usr/trimui/res/licenses/mame/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/mame/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/fceux/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/bsnes/LICENSE': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/gamebatte/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/picodrive/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/gPsp/COPYING.DOC': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/sms/license': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/temper/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/pcsx_rearmed/COPYING': No such file or directory
+rm: can't remove '/var/trimui_inputd/rotate_270': No such file or directory
+udhcpc: broadcasting discover
+udhcpc: broadcasting select for <IP>, server <IP>
+udhcpc: lease of <IP> obtained from <IP>, lease time 43200
+deleting routers
+adding dns <IP>
+adding dns <IP>
+adding dns <IP>
+adding dns <IP>
+adding dns <IP>
+
+# 
+Display all 846 possibilities? (y or n)
+!                                   lzmadec
+./                                  lzmainfo
+:                                   lzmore
+[                                   lzopcat
+[[                                  makedevs
+]]                                  mapfile
+a2dpconf                            mcookie
+adb_shell                           md5sum
+adbd                                mdev
+addgroup                            memhog
+adduser                             mesg
+alias                               mesh-cfgclient
+alsactl                             meshctl
+alsamixer                           metaflac
+amixer                              microcom
+amp_shell                           migratepages
+aplay                               migspeed
+ar                                  mim
+arch                                mk_cmds
+arecord                             mkdir
+arp                                 mkdosfs
+arping                              mke2fs
+ascii                               mkexfatfs
+--More--[K                                      aserver                             mkfifo
+ash                                 mkfs
+avahi-autoipd                       mkfs.btrfs
+avahi-browse                        mkfs.exfat
+avahi-browse-domains                mkfs.ext2
+avahi-publish                       mkfs.ext3
+avahi-publish-address               mkfs.ext4
+avahi-publish-service               mkfs.f2fs
+avahi-resolve                       mkfs.fat
+avahi-resolve-address               mkfs.jffs2
+avahi-resolve-host-name             mkfs.msdos
+avahi-set-host-name                 mkfs.ntfs
+awk                                 mkfs.vfat
+badblocks                           mklost+found
+base32                              mknod
+base64                              mkntfs
+basename                            mkpasswd
+bash                                mksquashfs
+bc                                  mkswap
+bccmd                               mktemp
+bg                                  modetest
+bind                                modprobe
+blkdeactivate                       moonlight
+--More--[K                                      blkdiscard                          more
+blkid                               mount
+blkzone                             mount.cifs
+blockdev                            mount.exfat
+bluealsa                            mount.exfat-fuse
+bluealsa-aplay                      mount.lowntfs-3g
+bluemoon                            mount.nfs
+bluetoothctl                        mount.nfs4
+bluetoothd                          mount.ntfs-3g
+break                               mount.smb3
+bt_test                             mountpoint
+btattach                            mountstats
+btmon                               mouse-dpi-tool
+btrfs                               mpg123
+btrfs-convert                       mpg123-id3dump
+btrfs-find-root                     mpg123-strip
+btrfs-image                         mpicalc
+btrfs-map-logical                   mpris-proxy
+btrfs-select-super                  mt
+btrfsck                             mtd_debug
+btrfstune                           mtdev-test
+builtin                             mtdinfo
+bunzip2                             mtop
+--More--[K                                      busybox                             mtop.cfg
+bzcat                               mv
+bzcmp                               namei
+bzdiff                              nameif
+bzegrep                             nanddump
+bzfgrep                             nandtest
+bzgrep                              nandwrite
+bzip2                               netstat
+bzip2recover                        nettle-hash
+bzless                              nettle-lfib-stream
+bzmore                              nettle-pbkdf2
+caller                              nfnl_osf
+case                                nfsconf
+cat                                 nfsdclnts
+cd                                  nfsiostat
+cddb_query                          nfsstat
+cedarSE_demo                        nice
+cedarSE_parm_adj                    nl
+cfdisk                              nohup
+cgroupfs-mount                      nologin
+cgroupfs-umount                     normalizer
+chattr                              nproc
+chcpu                               nslookup
+--More--[K                                      chgrp                               ntfs-3g
+chmod                               ntfs-3g.probe
+choom                               ntfscat
+chown                               ntfsclone
+chroot                              ntfscluster
+chrt                                ntfscmp
+chvt                                ntfscp
+ciptool                             ntfsfix
+cksum                               ntfsinfo
+clear                               ntfslabel
+cmp                                 ntfsls
+col                                 ntfsresize
+colcrt                              ntfsundelete
+colrm                               ntpd
+column                              nuke
+command                             numactl
+compgen                             numademo
+compile_et                          numastat
+complete                            od
+compopt                             openvt
+continue                            opj_compress
+coproc                              opj_decompress
+cp                                  opj_dump
+--More--[K                                      cpio                                oslat
+cpu_monitor                         ota-burnboot0
+crc32                               ota-burnuboot
+crda                                out123
+crond                               pa-info
+crontab                             pacat
+ctrlaltdel                          pacmd
+curl                                pactl
+cut                                 padsp
+cyclicdeadline                      pamon
+cyclictest                          pango-list
+date                                pango-segmentation
+dbus-cleanup-sockets                pango-view
+dbus-daemon                         paplay
+dbus-launch                         parec
+dbus-monitor                        parecord
+dbus-run-session                    parse.f2fs
+dbus-send                           parserdemo
+dbus-test-tool                      partprobe
+dbus-update-activation-environment  passwd
+dbus-uuidgen                        paste
+dc                                  pasuspender
+dd                                  patch
+--More--[K                                      deadline_test                       pcre2grep
+deallocvt                           pcre2test
+declare                             pcregrep
+defrag.f2fs                         pcretest
+delgroup                            pgrep
+deluser                             pi_stress
+demoVencoder                        pidof
+determine_maximum_mpps.sh           ping
+devmem                              pip_stress
+df                                  pipe_progress
+diff                                pivot_root
+dirname                             pkcs1-conv
+dirs                                pmqtest
+disown                              popd
+dmesg                               powerkey_display
+dmeventd                            powerkey_suspend
+dmsetup                             poweroff
+dmstats                             printenv
+dnsd                                printf
+dnsdomainname                       prlimit
+dnsmasq                             ps
+do                                  psicc
+done                                ptsematest
+--More--[K                                      dos2unix                            pulseaudio
+dosfsck                             pushd
+dosfslabel                          pvchange
+du                                  pvck
+dump.exfat                          pvcreate
+dump.f2fs                           pvdisplay
+dumpe2fs                            pvmove
+dumpexfat                           pvremove
+dumpkmap                            pvresize
+dumpsexp                            pvs
+e2freefrag                          pvscan
+e2fsck                              pwd
+e2label                             python
+e2mmpstatus                         python3
+e2undo                              python3.10
+e4crypt                             queuelat
+echo                                rctest
+egrep                               rdate
+eject                               rdiff
+elif                                read
+else                                readarray
+enable                              readlink
+env                                 readonly
+--More--[K                                      esac                                readprofile
+esdcompat                           realpath
+ether-wake                          reboot
+eval                                regdbdump
+event_rpcgen.py                     renice
+exec                                reset
+exfatfsck                           resize
+exfatlabel                          resize.f2fs
+exit                                resize2fs
+export                              resume
+exportfs                            return
+expr                                rev
+f2fs_io                             rfcomm
+f2fscrypt                           rm
+f2fstat                             rmdir
+faad                                rmmod
+factor                              route
+fallocate                           rpc.mountd
+false                               rpc.nfsd
+fatlabel                            rpc.statd
+fbset                               rpcbind
+fc                                  rpcinfo
+fc-cache                            rt-migrate-test
+--More--[K                                      fc-cat                              rtcwake
+fc-conflist                         run-init
+fc-list                             run-parts
+fc-match                            runc
+fc-pattern                          runlevel
+fc-query                            sbcdec
+fc-scan                             sbcenc
+fc-validate                         sbcinfo
+fdflush                             scp
+fdformat                            script
+fdisk                               scriptlive
+ffmpeg                              scriptreplay
+ffprobe                             sdptool
+fg                                  sed
+fgrep                               select
+fi                                  seq
+fibmap.f2fs                         set
+filefrag                            setarch
+fincore                             setconsole
+find                                setfattr
+findfs                              setkeycodes
+findmnt                             setlogcons
+flac                                setpriv
+--More--[K                                      flash_erase                         setserial
+flash_lock                          setsid
+flash_unlock                        setusbconfig
+flashcp                             sexp-conv
+flock                               sfdisk
+fold                                sftp
+for                                 sg_write_buffer
+free                                sh
+freeramdisk                         sha1sum
+fribidi                             sha256sum
+fsadm                               sha3sum
+fsck                                sha512sum
+fsck.btrfs                          shift
+fsck.exfat                          shopt
+fsck.ext2                           showmount
+fsck.ext3                           shred
+fsck.ext4                           signaltest
+fsck.f2fs                           sigwaittest
+fsck.fat                            sleep
+fsck.msdos                          sload.f2fs
+fsck.vfat                           sm-notify
+fsfreeze                            smtpd.py.10
+fstrim                              sort
+--More--[K                                      function                            source
+fuse2fs                             speexdec
+fuser                               speexenc
+fusermount                          sqfscat
+fw_printenv                         sqfstar
+fw_setenv                           sqlite3
+gapplication                        ssdd
+gatttool                            ssh
+gcore                               ssh-add
+gdb                                 ssh-agent
+gdb-add-index                       ssh-copy-id
+gdbserver                           ssh-keygen
+gdbus                               ssh-keyscan
+getevent                            sshd
+getopt                              start-statd
+getopts                             start-stop-daemon
+getty                               strace
+gio                                 strace-log-merge
+gio-querymodules                    stress-ng
+glmark2-es2-drm                     strings
+gpg-error                           stty
+gpgrt-config                        su
+grep                                sulogin
+--More--[K                                      gresource                           suspend
+gsettings                           svc
+gunzip                              svok
+gzip                                svsematest
+hackbench                           swaplabel
+halt                                swapoff
+hash                                swapon
+hb-ot-shape-closure                 switch_root
+hb-shape                            sync
+hb-subset                           sysctl
+hb-view                             syslogd
+hciattach                           tail
+hciconfig                           tar
+hcidump                             tc
+hcitool                             tcpdump
+hdparm                              tee
+head                                telnet
+help                                test
+hex2hcd                             tftp
+hexdump                             then
+hexedit                             time
+history                             times
+hmac256                             tinycap
+--More--[K                                      hostapd                             tinymix
+hostapd_cli                         tinypcminfo
+hostid                              tinyplay
+hostname                            top
+hwclock                             touch
+i2cdetect                           touchpad-edge-detector
+i2cdump                             tplayerdemo
+i2cget                              tplayerslave
+i2cset                              tr
+i2ctransfer                         traceroute
+id                                  transicc
+if                                  trap
+ifconfig                            true
+ifdown                              truncate
+ifup                                ts
+in                                  tty
+inetd                               tune.exfat
+init                                tune2fs
+insmod                              type
+install                             typeset
+ip                                  ubiattach
+ip6tables                           ubiblock
+ip6tables-apply                     ubicrc32
+--More--[K                                      ip6tables-legacy                    ubidetach
+ip6tables-legacy-restore            ubiformat
+ip6tables-legacy-save               ubimkvol
+ip6tables-restore                   ubinfo
+ip6tables-save                      ubinize
+ipaddr                              ubirename
+ipcrm                               ubirmvol
+ipcs                                ubirsvol
+iperf3                              ubiupdatevol
+iplink                              udevadm
+ipneigh                             udevd
+iproute                             udhcpc
+iprule                              udhcpd
+iptables                            udpbcast
+iptables-apply                      uevent
+iptables-legacy                     ulimit
+iptables-legacy-restore             umask
+iptables-legacy-save                umount
+iptables-restore                    umount.nfs
+iptables-save                       umount.nfs4
+iptables-xml                        unalias
+iptunnel                            uname
+irqtop                              uname26
+--More--[K                                      isosize                             uniq
+iw                                  unix2dos
+jbig2dec                            unlink
+jo                                  unlzma
+jobs                                unlzop
+jpgicc                              unset
+jq                                  unsquashfs
+jsonschema                          until
+kill                                unxz
+killall                             unzip
+killall5                            uptime
+klogd                               usleep
+l2ping                              uudecode
+l2test                              uuencode
+last                                uuidgen
+ldattach                            uuidparse
+ldd                                 vconfig
+less                                vdecoderdemo
+let                                 vgcfgbackup
+libevdev-tweak-device               vgcfgrestore
+libinput                            vgchange
+link                                vgck
+linkicc                             vgconvert
+--More--[K                                      linux32                             vgcreate
+linux64                             vgdisplay
+ln                                  vgexport
+loadfont                            vgextend
+loadkmap                            vgimport
+local                               vgimportclone
+logger                              vgimportdevices
+login                               vgmerge
+logname                             vgmknodes
+logout                              vgreduce
+logsave                             vgremove
+look                                vgrename
+losetup                             vgs
+lowntfs-3g                          vgscan
+ls                                  vgsplit
+lsattr                              vi
+lsblk                               vlock
+lscpu                               w
+lsipc                               wait
+lsirq                               watch
+lslocks                             watchdog
+lsmod                               wc
+lsns                                wget
+--More--[K                                      lsof                                whereis
+lspci                               which
+lsscsi                              while
+lsusb                               who
+ltrace                              whoami
+lvchange                            wifi
+lvconvert                           wifi_daemon
+lvcreate                            wpa_cli
+lvdisplay                           wpa_passphrase
+lvextend                            wpa_supplicant
+lvm                                 wsdump.py
+lvm_import_vdo                      xargs
+lvmconfig                           xmetademo
+lvmdevices                          xmlcatalog
+lvmdiskscan                         xmllint
+lvmdump                             xplayerdemo
+lvmsadc                             xtables-legacy-multi
+lvmsar                              xxd
+lvreduce                            xz
+lvremove                            xzcat
+lvrename                            xzcmp
+lvresize                            xzdec
+lvs                                 xzdiff
+--More--[K                                      lvscan                              xzegrep
+lzcat                               xzfgrep
+lzcmp                               xzgrep
+lzdiff                              xzless
+lzegrep                             xzmore
+lzfgrep                             yes
+lzgrep                              zcat
+lzless                              {
+lzma                                }
+#   reboo     create /dev/mmcblk1p1
+create /dev/mmcblk1p2
+create /dev/mmcblk1
+remove /dev/mmcblk1p1
+remove /dev/mmcblk1p2
+remove /dev/mmcblk1p1
+lsblk
+NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+nbd0         43:0    0    0B  0 disk 
+nbd1         43:32   0    0B  0 disk 
+nbd2         43:64   0    0B  0 disk 
+nbd3         43:96   0    0B  0 disk 
+nbd4         43:128  0    0B  0 disk 
+nbd5         43:160  0    0B  0 disk 
+nbd6         43:192  0    0B  0 disk 
+nbd7         43:224  0    0B  0 disk 
+mmcblk0     179:0    0  7.3G  0 disk 
+|-mmcblk0p1 179:1    0   32M  0 part 
+|-mmcblk0p2 179:2    0   16M  0 part 
+|-mmcblk0p3 179:3    0   96M  0 part 
+|-mmcblk0p4 179:4    0    2G  0 part /
+|-mmcblk0p5 179:5    0   96M  0 part 
+`-mmcblk0p6 179:6    0    5G  0 part /mnt/UDISK
+mmcblk1     179:8    0 29.2G  0 disk 
+|-mmcblk1p1 179:9    0  256M  0 part 
+`-mmcblk1p2 179:10   0 28.9G  0 part 
+nbd8         43:256  0    0B  0 disk 
+nbd9         43:288  0    0B  0 disk 
+nbd10        43:320  0    0B  0 disk 
+nbd11        43:352  0    0B  0 disk 
+nbd12        43:384  0    0B  0 disk 
+nbd13        43:416  0    0B  0 disk 
+nbd14        43:448  0    0B  0 disk 
+nbd15        43:480  0    0B  0 disk 
+# fee  ree -hT
+              total        used        free      shared  buff/cache   available
+Mem:         962.9M      321.6M      498.1M        1.1M      143.2M      624.8M
+Swap:             0           0           0
+# df hT  -hT
+Filesystem           Type            Size      Used Available Use% Mounted on
+/dev/root            ext4            1.9G    453.3M      1.5G  23% /
+df: /dev/shm: No such file or directory
+tmpfs                tmpfs         481.4M    844.0K    480.6M   0% /tmp
+tmpfs                tmpfs         481.4M    196.0K    481.3M   0% /run
+devtmpfs             devtmpfs      416.4M         0    416.4M   0% /dev
+cgroup               tmpfs         481.4M         0    481.4M   0% /sys/fs/cgroup
+/dev/mmcblk0p6       ext4            4.9G     80.0K      4.6G   0% /mnt/UDISK
+# df -hT
+Filesystem           Type            Size      Used Available Use% Mounted on
+/dev/root            ext4            1.9G    453.3M      1.5G  23% /
+df: /dev/shm: No such file or directory
+tmpfs                tmpfs         481.4M    844.0K    480.6M   0% /tmp
+tmpfs                tmpfs         481.4M    196.0K    481.3M   0% /run
+devtmpfs             devtmpfs      416.4M         0    416.4M   0% /dev
+cgroup               tmpfs         481.4M         0    481.4M   0% /sys/fs/cgroup
+/dev/mmcblk0p6       ext4            4.9G     80.0K      4.6G   0% /mnt/UDISK
+# reboot
+# /etc/init.d/S88runtrimui: line 5: ]: command not found
+/etc/init.d/S80bootplay: line 4: ]: command not found
+/etc/init.d/S70launcher: line 65: ]: command not found
+stop
+/etc/init.d/S60mount_udisk: line 18: ]: command not found
+Stopping sshd: OK
+Stopping pulseaudio: E: [pulseaudio] main.c: [1;31mFailed to kill daemon: No such process[0m
+OK
+Stopping adbd OK
+Stopping ntpd: OK
+Stopping network: OK
+Stopping iptables: OK
+Stopping rpcbind daemon: OK
+Stopping system message bus: done
+Unmounting cgroupfs hierarchy: OK
+Saving random seed: OK
+/etc/init.d/S20mdev: line 9: ]: command not found
+Stopping klogd: OK
+Stopping syslogd: OK
+umount: /tmp: target is busy.
+umount: /dev/shm: no mount point specified.
+The system is going down NOW!
+Sent SIGTERM to all processes
+Sent SIGKILL t[159]HELLO! BOOT0 is starting!
+[163]BOOT0 commit : 33d8db429a
+[167]periph0 has been enabled
+[170]set pll end
+[172]PL gpio voltage : 3.3V 
+[176]PMU: AXP2202
+[181]PMU: AXP1530
+[186]power mode:33, sys_vol:920
+[195]vaild para:8  select dram para0
+[199]board init ok
+[201]rtc[3] value = 0xa301
+[204]rtc[7] value = 0x2
+[227]enable_jtag
+[229]card no is 2
+[231]sdcard 2 line count 8
+[234][mmc]: mmc driver ver 2023-03-24 16:23
+[244][mmc]: Wrong media type 0x0, but host sdc2, try mmc first
+[250][mmc]: ***Try MMC card 2***
+[286][mmc]: RMCA OK!
+[288][mmc]: bias 17fb
+[291][mmc]: mmc 2 bias 17fb
+[301][mmc]: MMC 5.1
+[303][mmc]: HSSDR52/SDR25 8 bit
+[307][mmc]: 50000000 Hz
+[309][mmc]: 7456 MB
+[311][mmc]: ***SD/MMC 2 init OK!!!***
+[323]DRAM BOOT DRIVE INFO: V0.67
+[327]DRAM_VCC set to 1100 mv
+[330]DRAM CLK =1200 MHZ
+[332]DRAM Type =8 (3:DDR3,4:DDR4,7:LPDDR3,8:LPDDR4)
+[344]phy_dfs_clk1 = 800M
+[347]phy_dfs_clk2 = 480M
+[351]phy_dfs_clk3 = 150M
+[354]phy_dfs_clk0 = 1200M
+[357]DRAM MDFS VERSION INFO: V0.660
+[362]DRAM MDFS time =38430 ns
+[365]DRAM SIZE =1024 MBytes, para1 = 30fa, para2 = 4000000, tpr13 = 6465
+[395]DRAM simple test OK.
+[398]dram size =1024
+[405]nsi init 2023-2-23
+[497]Loading boot-pkg Succeed(index=0).
+[501]Entry_name        = u-boot
+[511]Entry_name        = monitor
+[514]Entry_name        = scp
+[518]Entry_name        = dtb
+[522]tunning data addr:0x4a0003e8
+[525]Jump to second Boot.
+NOTICE:  BL31: v2.5(debug):55b180a27
+NOTICE:  BL31: Built : 11:09:52, Sep 18 2023
+NOTICE:  BL31: No DTB found.
+nsi init ok 2022-11-08
+ERROR:   Error initializing runtime service opteed_fast
+
+
+U-Boot 2018.07 (Dec 14 2025 - 18:37:18 +0800) Allwinner Technology
+
+[00.664]CPU:   Allwinner Family
+[00.667]Model: sun55iw3
+I2C:   ready
+[00.678]DRAM:  1 GiB
+[00.682]Relocation Offset is: 35af5000
+[00.754]secure enable bit: 0
+[01.260]EXT: NO FOUND
+[01.262]EXT: ETA6973/ETA6974
+[01.273]PMU: AXP2202
+[01.279]BMU: AXP2202
+[01.285]battery_check pass:radio:74, vol:3876
+[01.289][AXP2202] comm status : 0x0 = 0x18, 0x1 = 0xd5
+[01.294][AXP2202] onoff status: 0x20 = 0x0, 0x21 = 0x0
+[01.299][AXP2202] reboot/charge status: 0xf0 = 0x0
+[01.304]PMU: AXP1530
+[01.306]CPU=1008 MHz,PLL6=600 Mhz,AHB=200 Mhz, APB1=100Mhz  MBus=600Mhz
+[01.312]gic: sec monitor mode
+SPI ALL:   ready
+[01.318]flash init start
+[01.320]workmode = 0,storage type = 2
+[01.323][mmc]: mmc driver ver uboot2018:2024-10-18 9:01:00
+[01.330][mmc]: SUNXI SDMMC Controller Version:0x50500
+[01.340][mmc]: 200 MHz...
+[01.342][mmc]: sample: 22 - 113(ps)
+[01.345][mmc]: ds: 22 - 113(ps)
+[01.380][mmc]: Best spd md: 4-HS400, freq: 5-200000000, Bus width: 8
+[01.386]sunxi flash init ok
+[01.390]Loading Environment from SUNXI_FLASH... OK
+TRIMUI boot reason=unknow
+[01.406]Fail to get de's irq!
+[01.440][PHY] Unset hs_clk_rate.
+PCB TYPE:0
+panel_dsi_get_modes: clk[62017] h[720 752 758 776] v[1280 1296 1298 1332]
+[01.457][axp][err]: can't find cldo4 from table
+[01.461]enable power_ext cldo4, ret=-1
+[01.465][axp][err]: can't find cldo1 from table
+[01.469]enable power_ext cldo1, ret=-1
+check_lcd_module
+0x04=E8, len=0 [E8 85 76 76]
+0xDA=E8, len=0 [E8 00 00 00]
+0xDB=85, len=0 [85 00 00 00]
+0xDC=76, len=0 [76 00 00 00]
+LCD module er68576
+[01.946][axp][err]: can't find cldo1 from table
+[01.950]disable power_ext cldo1, ret=-1
+[01.954][axp][err]: can't find cldo4 from table
+[01.958]disable power_ext cldo4, ret=-1
+[01.982][axp][err]: can't find cldo4 from table
+[01.986]enable power_ext cldo4, ret=-1
+[01.990][axp][err]: can't find cldo1 from table
+[01.994]enable power_ext cldo1, ret=-1
+lcd panel init disp2
+PCB TYPE:0
+panel_dsi_get_modes: clk[69000] h[720 752 756 844] v[1280 1296 1300 1309]
+dsi1@5508000:  detailed mode clock 69000 kHz, flags[0]
+    H: 0720 0752 0756 0844
+    V: 1280 1296 1300 1309
+bus_format: 0
+partno erro : can't find partition bootloader
+[02.441]bootloader is not found!
+396x66 bmp rotated to 66x396
+x=327, y=442, width=66, height=396, ssize=720, ysize=1280
+[02.458][PHY] phy_config:0 Unset the lvl,Use the default cfg.
+PCB TYPE:0
+panel_dsi_get_modes: clk[69000] h[720 752 756 844] v[1280 1296 1300 1309]
+[02.477][axp][err]: can't find cldo4 from table
+[02.481]enable power_ext cldo4, ret=-1
+[02.485][axp][err]: can't find cldo1 from table
+[02.489]enable power_ext cldo1, ret=-1
+lcd panel init disp2
+[03.076]the secure storage item0 copy0 magic is bad
+[03.090]the secure storage item0 copy1 magic is bad
+[03.094]usb burn from boot
+delay time 0
+weak:otg_phy_config
+[03.104]usb prepare ok
+[03.407]overtime
+[03.412]do_burn_from_boot usb : no usb exist
+skip update boot_param
+partno erro : can't find partition private
+partno erro : can't find partition private
+partno erro : can't find partition private
+partno erro : can't find partition private
+partno erro : can't find partition private
+root_partition is rootfs
+set root to /dev/mmcblk0p4
+[03.442]update part info
+[03.445]update bootcmd
+lradc_value:63
+dram size:1073741824
+[03.452]change working_fdt 0x7baa4e28 to 0x7ba74e28
+quick charge supported, battery exist: yes, power delivery enabled
+[03.467]The storage not support sample function
+ret 0
+[03.616]update dts
+Hit any key to stop autoboot:  0 
+avb_footer.c:22: ERROR: Footer magic is incorrect.
+[03.753]no vendor_boot partition is found
+Android's image name: sun55i_arm64
+kernel  addr 0x40080000 0x41694808 exceed ramdisk scope
+ramdisk  addr 0x41000000 0x41000000
+ERROR: reserving fdt memory region failed (addr=7bb7c000 size=384000)
+[03.814]Starting kernel ...
+
+[03.817]total: 3817 ms
+
+[03.819][mmc]: mmc exit start
+[03.853][mmc]: mmc 2 exit ok
+NOTICE:  [SCP] :wait arisc ready....
+NOTICE:  [SCP] :arisc version: []
+NOTICE:  [SCP] :arisc startup ready
+NOTICE:  [SCP] :arisc startup notify message feedback
+NOTICE:  [SCP] :sunxi-arisc driver is starting
+BL3-1: Next image address = 0x40080000
+BL3-1: Next image spsr = 0x3c5
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x412fd050]
+[    0.000000] Linux version 5.15.147 (TRIMUIDEV@NUC) (aarch64-none-linux-gnu-gcc (GNU Toolchain for the A-profile Architecture 10.3-2021.07 (arm-10.29)) 10.3.1 20210621, GNU ld (GNU Toolchain for the A-profile Architecture 10.3-2021.07 (arm-10.29)) <IP>10621) #82 SMP PREEMPT Mon Feb 2 14:12:03 CST 2026
+[    0.000000] Machine model: sun55iw3
+[    0.000000] earlycon: uart8250 at MMIO32 0x0000000002500000 (options '')
+[    0.000000] printk: bootconsole [uart8250] enabled
+can't run '/etc/preinit': No such file or directory
+Starting syslogd: OK
+Starting klogd: OK
+Running sysctl: OK
+chown: unknown user/group avahi:avahi
+Populating /dev using udev: done
+Initializing random number generator: OK
+Saving random seed: OK
+Mounting cgroupfs hierarchy: OK
+Starting system message bus: dbus[1067]: Unknown username "pulse" in message bus configuration file
+done
+Starting rpcbind: OK
+Starting iptables: OK
+Starting network: OK
+Starting ntpd: OK
+usb0 current mode: 
+Starting adb: OK
+init adb main
+Handling main()
+Starting pulseaudio: Starting sshd: OK
+ln: /dev/by-name/boot: File exists
+/dev/by-name/UDISK already format by ext4
+start
+chmod: /usr/bin/notify: No such file or directory
+TRIMUI picture to drmfb
+fb_id[161] fbmem=0x7f99510000, s_fb_size=3686400
+ui:0x7f99510000
+# /usr/trimui/bin/splash.png:1280x720@4chn
+ls: /dev/mmcblk1*: No such file or directory
+TRIMUI Input Daemon Jan 27 2026
+enable led gpio
+sh: line 1: echo: write error: Device or resource busy
+sh: line 1: /sys/class/gpio/gpio338/direction: No such file or directory
+sh: line 1: /sys/class/gpio/gpio338/value: No such file or directory
+enable left pad gpio
+enable right pad gpio
+enable dip switch gpio
+could not get driver version for /dev/input/mice, Inappropriate ioctl for device
+open device /dev/input/mice fail
+pk_read_cal_config: [610 2108 3648] [0 1763 3490] z-trigger[250 750] deadzone[0.10]
+pk dead zone radius:3276.000000
+pk_read_cal_config: [532 2041 3549] [0 1755 3557] z-trigger[250 750] deadzone[0.10]
+pk dead zone radius:3276.000000
+could not get driver version for /dev/input/js0, Invalid argument
+fd=4
+fd=5
+TRIMUI Scene Daemon
+sh: line 1: echo: write error: Device or resource busy
+sh: line 1: echo: write error: Device or resource busy
+sh: line 1: echo: write error: Device or resource busy
+sh: line 1: echo: write error: Device or resource busy
+dip change: 1
+run scene 1
+ls: *.sh: No such file or directory
+/usr/trimui/apps/fn_editor/show_fn_dip_on_msg.sh: line 24: /tmp/trimui_osd/osd_toast_msg: No such file or directory
+G2D fd=4
+trimui_osd_init_layers
+fb_id[161] fbmem=0x7fa5d65000, s_fb_size=3686400
+fb_id[162] fbmem=0x7fa59e1000, s_fb_size=3686400
+fb_id[163] fbmem=0x7fa565d000, s_fb_size=3686400
+osd:0x7fa5d65000, msg:0x7fa59e1000, blank:0x7fa565d000
+fb_id[164] fbmem=0x7fa52d9000, s_fb_size=3686400
+ui:0x7fa52d9000
+default pipe size: 65536
+new pipe size: 4096
+chmod: /usr/trimui/osd//widgets/static_temperature/set.sh: No such file or directory
+sh: line 1: /usr/trimui/osd//widgets/static_temperature/set.sh: No such file or directory
+chmod: /usr/trimui/osd//widgets/static_cpu_freq/set.sh: No such file or directory
+sh: line 1: /usr/trimui/osd//widgets/static_cpu_freq/set.sh: No such file or directory
+killall: wpa_supplicant: no process killed
+killall: udhcpc: no process killed
+udhcpc: started, v1.35.0
+Failed to connect to non-global ctrl_ifname: wlan0  error: Connection refused
+Failed to connect to non-global ctrl_ifname: wlan0  error: Connection refused
+udhcpc: broadcasting discover
+Can't get device info: No such device
+stop bluetoothd and hciattach
+rm: can't remove '/tmp/bluetooth_ready': No such file or directory
+Stopping bluetoothd: FAIL
+SDL_CreateWindow:536805376 536805376 1280 720
+killall: bluealsa: no process killed
+rm: can't remove '/tmp/localtime': No such file or directory
+killall: bluetoothctl: no process killed
+open icon_bg_red fail: Couldn't open ../res/skin/icon-bg-red.png: No such file or directory
+open icon_bg_blue fail: Couldn't open ../res/skin/icon-bg-blue.png: No such file or directory
+open icon_bg_orange fail: Couldn't open ../res/skin/icon-bg-orange.png: No such file or directory
+load music /etc/enter.wav fail: Mix_LoadWAV_RW with NULL src
+cp: can't stat '/usr/trimui/res/licenses/mame/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/mame/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/fceux/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/bsnes/LICENSE': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/gamebatte/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/picodrive/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/gPsp/COPYING.DOC': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/sms/license': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/temper/COPYING': No such file or directory
+cp: can't stat '/usr/trimui/res/licenses/pcsx_rearmed/COPYING': No such file or directory
+rm: can't remove '/var/trimui_inputd/rotate_270': No such file or directory
+udhcpc: broadcasting discover
+udhcpc: broadcasting select for <IP>, server <IP>
+udhcpc: lease of <IP> obtained from <IP>, lease time 43200
+deleting routers
+adding dns <IP>
+adding dns <IP>
+adding dns <IP>
+adding dns <IP>
+adding dns <IP>
+create /dev/mmcblk1
+create /dev/mmcblk1p2
+create /dev/mmcblk1p1
+remove /dev/mmcblk1p1
+remove /dev/mmcblk1p2
+remove /dev/mmcblk1p1
+lsblk
+NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+nbd0         43:0    0    0B  0 disk 
+nbd1         43:32   0    0B  0 disk 
+nbd2         43:64   0    0B  0 disk 
+nbd3         43:96   0    0B  0 disk 
+nbd4         43:128  0    0B  0 disk 
+nbd5         43:160  0    0B  0 disk 
+nbd6         43:192  0    0B  0 disk 
+nbd7         43:224  0    0B  0 disk 
+mmcblk0     179:0    0  7.3G  0 disk 
+|-mmcblk0p1 179:1    0   32M  0 part 
+|-mmcblk0p2 179:2    0   16M  0 part 
+|-mmcblk0p3 179:3    0   96M  0 part 
+|-mmcblk0p4 179:4    0    2G  0 part /
+|-mmcblk0p5 179:5    0   96M  0 part 
+`-mmcblk0p6 179:6    0    5G  0 part /mnt/UDISK
+mmcblk1     179:8    0   50G  0 disk 
+|-mmcblk1p1 179:9    0  256M  0 part 
+`-mmcblk1p2 179:10   0 49.8G  0 part 
+nbd8         43:256  0    0B  0 disk 
+nbd9         43:288  0    0B  0 disk 
+nbd10        43:320  0    0B  0 disk 
+nbd11        43:352  0    0B  0 disk 
+nbd12        43:384  0    0B  0 disk 
+nbd13        43:416  0    0B  0 disk 
+nbd14        43:448  0    0B  0 disk 
+nbd15        43:480  0    0B  0 disk 
+# df -hT
+Filesystem           Type            Size      Used Available Use% Mounted on
+/dev/root            ext4            1.9G    453.3M      1.5G  23% /
+df: /dev/shm: No such file or directory
+tmpfs                tmpfs         481.4M    840.0K    480.6M   0% /tmp
+tmpfs                tmpfs         481.4M    196.0K    481.3M   0% /run
+devtmpfs             devtmpfs      416.4M         0    416.4M   0% /dev
+cgroup               tmpfs         481.4M         0    481.4M   0% /sys/fs/cgroup
+/dev/mmcblk0p6       ext4            4.9G     80.0K      4.6G   0% /mnt/UDISK
+# reboot
+# /etc/init.d/S88runtrimui: line 5: ]: command not found
+/etc/init.d/S80bootplay: line 4: ]: command not found
+/etc/init.d/S70launcher: line 65: ]: command not found
+stop
+/etc/init.d/S60mount_udisk: line 18: ]: command not found
+Stopping sshd: OK
+Stopping pulseaudio: E: [pulseaudio] main.c: [1;31mFailed to kill daemon: No such process[0m
+OK
+Stopping adbd OK
+Stopping ntpd: OK
+Stopping network: OK
+Stopping iptables: OK
+Stopping rpcbind daemon: OK
+Stopping system message bus: done
+Unmounting cgroupfs hierarchy: OK
+Saving random seed: OK
+/etc/init.d/S20mdev: line 9: ]: command not found
+Stopping klogd: OK
+Stopping syslogd: OK
+umount: /tmp: target is busy.
+umount: /dev/shm: no mount point specified.
+The system is going down NOW!
+Sent SIGTERM to all processes
