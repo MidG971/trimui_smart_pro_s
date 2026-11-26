@@ -288,6 +288,8 @@
 		battery-power {
 			compatible = "x-powers,axp717-battery-power-supply";
 			monitored-battery = <&battery>;
+			/* TS pin reads under-temp (REG 0x08 bit0) and blocks charging; disable TS */
+			x-powers,no-thermistor;
 		};
 
 		usb-power {
