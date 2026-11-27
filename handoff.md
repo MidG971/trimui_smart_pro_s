@@ -790,3 +790,10 @@ Raw dmesg with the DSI-DUMP/TCON-DUMP lines saved at `bringup/dmesg-2026-11-27-d
 - Blank/unblank also works as a runtime recovery (re-runs encoder enable; with panel configured, prepare is skipped → clean HSD start).
 - Note: this boot came up on Tailscale only (LAN ssh timed out, 192.168.1.93 unreachable) — wifi-up flakiness worth a look.
 - Remaining display polish: TRI_FINISH (bit11) still not observed (vblank counted via VBLANK_INT bit15 instead — works); 0061/0074-0076/full-0078 port still pending (frame pacing/tearing); DSI 2e0 stays 0 (video line reg unused in this mode); visual confirmation of actual pixels on the glass pending user check.
+
+## Addendum 40 (2026-11-28 ~11:30: DE size transpose fix — the "no pixels" root cause)
+
+- User confirmed: only backlight, no content, even with the frame loop at 63 Hz. Root cause: **SUN55I_DE_OUT_SIZE was transposed**. v10's claim "BSP = (h-1)<<16|(w-1)" was BACKWARDS: TCON0_BASIC0 has X in bits[27:16] (header-confirmed), and the stock oracle shows the working 720x1280 pipeline uses 0x02cf04ff everywhere (DE-top 0x5008108, BLD out 0x528108c, TCON BASIC0 0x55020048). Our macro produced 0x04ff02cf = 1280x720 into a 720x1280 TCON → no pixels decoded.
+- Fix: SUN55I_DE_OUT_SIZE(w,h) = ((w-1)<<16)|(h-1). sun8i-mixer.ko 865a2762 deployed; after reboot all size regs read 0x02cf04ff == stock, 0 vblank/flip timeouts, frame loop at 63 Hz, init replay accum_err=-110 on one command this boot (retry loop mostly works; FSM survived — video engine still started, DSI-VID line advancing).
+- Modules now on device: sun8i-mixer 865a2762 (size fix + 0073/0078), sun6i_mipi_dsi 65abed34 (wait/no-abort/raw-edges/re-init-before-HSD), panel 5104ca5e (vendor table + retries).
+- Pending: visual confirmation of pixels on the glass (user checking).
