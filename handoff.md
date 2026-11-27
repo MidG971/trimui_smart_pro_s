@@ -776,5 +776,6 @@ Raw dmesg with the DSI-DUMP/TCON-DUMP lines saved at `bringup/dmesg-2026-11-27-d
 
 ## Addendum 38 (2026-11-28 ~later: shutdown/reboot quirk)
 
-- **Observed**: over ssh, `shutdown && exit` powers the device down, but it **reboots a few seconds later** — had to turn it off manually. Cause: the device is plugged into USB charger; the AXP717 PMU auto power-on when VBUS is present (plug-in boot), so a shutdown with the charger attached just reboots. To power off for real: unplug the charger first, then shutdown (or hold power button).
-- Note for sessions: `ssh root@192.168.1.93 'echo b > /proc/sysrq-trigger'` reboots are fine (that's intended), but a plain shutdown will NOT stay off while charging.
+- **Observed**: over ssh, `shutdown && exit` powers the device down, but it **reboots a few seconds later** — had to turn it off manually. **Correction: the device was NOT attached to the USB charger** (user), so plain VBUS plug-in boot is ruled out as the confirmed cause. Remaining hypotheses: (a) VBUS from another source (laptop USB cable still connected?), (b) AXP717 wakeup source other than VBUS — RTC alarm or PEK — check wakeup enables (AXP regs ~0x2x, /sys/class/wakeup/*/event_count, /proc/interrupts axp lines) and the boot reason after it happens again, (c) gamepad MCU asserting power-on, (d) u-boot auto-booting again if the kernel exits without a clean PMU poweroff (cmdline has panic=10 — a panic would reboot after 10 s, check dmesg for panic on next occurrence).
+- To power off for real: hold the power button; if it still reboots, capture `dmesg | tail` after the unexpected reboot to see the wake reason.
+- Note for sessions: `ssh root@192.168.1.93 'echo b > /proc/sysrq-trigger'` reboots are fine (that's intended).
